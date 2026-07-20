@@ -113,11 +113,11 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$app"
           lipo "$app/Contents/MacOS/YeelightBar" -verify_arch arm64 x86_64
           codesign -d --entitlements - --xml "$app" > "$RUNNER_TEMP/entitlements.plist"
-          plutil -extract com.apple.security.app-sandbox raw "$RUNNER_TEMP/entitlements.plist" | grep -qx true
-          plutil -extract com.apple.security.network.client raw "$RUNNER_TEMP/entitlements.plist" | grep -qx true
-          plutil -extract com.apple.security.network.server raw "$RUNNER_TEMP/entitlements.plist" | grep -qx true
-          plutil -extract com.apple.security.files.user-selected.read-write raw "$RUNNER_TEMP/entitlements.plist" | grep -qx true
-          if plutil -extract com.apple.security.get-task-allow raw "$RUNNER_TEMP/entitlements.plist" >/dev/null 2>&1; then
+          /usr/libexec/PlistBuddy -c 'Print :com.apple.security.app-sandbox' "$RUNNER_TEMP/entitlements.plist" | grep -qx true
+          /usr/libexec/PlistBuddy -c 'Print :com.apple.security.network.client' "$RUNNER_TEMP/entitlements.plist" | grep -qx true
+          /usr/libexec/PlistBuddy -c 'Print :com.apple.security.network.server' "$RUNNER_TEMP/entitlements.plist" | grep -qx true
+          /usr/libexec/PlistBuddy -c 'Print :com.apple.security.files.user-selected.read-write' "$RUNNER_TEMP/entitlements.plist" | grep -qx true
+          if /usr/libexec/PlistBuddy -c 'Print :com.apple.security.get-task-allow' "$RUNNER_TEMP/entitlements.plist" >/dev/null 2>&1; then
             echo 'Release artifact contains get-task-allow.' >&2
             exit 1
           fi
