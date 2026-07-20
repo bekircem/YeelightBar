@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify (${{ matrix.runner }})
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-26, macos-26-intel]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Toolchain
+        run: xcodebuild -version
+
+      - name: Validate metadata
+        run: bash Scripts/validate-plists.sh
+
+      - name: Scan committed source for secrets
+        run: bash Scripts/check-secrets.sh
+
+      - name: Debug tests with complete concurrency checking
+        run: >-
+          xcodebuild test
+          -project YeelightBar.xcodeproj
+          -scheme YeelightBar
+          -configuration Debug
+          -destination 'platform=macOS'
+          -derivedDataPath "$RUNNER_TEMP/DerivedData"
+          CODE_SIGNING_ALLOWED=NO
+          SWIFT_STRICT_CONCURRENCY=complete
+
+      - name: Release build
+        run: >-
+          xcodebuild build
+          -project YeelightBar.xcodeproj
+          -scheme YeelightBar
+          -configuration Release
+          -destination 'platform=macOS'
+          -derivedDataPath "$RUNNER_TEMP/ReleaseDerivedData"
+          CODE_SIGNING_ALLOWED=NO
+          SWIFT_STRICT_CONCURRENCY=complete
+
+      - name: Static analyzer
+        run: >-
+          xcodebuild analyze
+          -project YeelightBar.xcodeproj
+          -scheme YeelightBar
+          -configuration Release
+          -destination 'platform=macOS'
+          -derivedDataPath "$RUNNER_TEMP/AnalyzeDerivedData"
+          CODE_SIGNING_ALLOWED=NO
+          SWIFT_STRICT_CONCURRENCY=complete
+
+      - name: Thread Sanitizer network stress suite
+        if: matrix.runner == 'macos-26'
+        run: >-
+          xcodebuild test
+          -project YeelightBar.xcodeproj
+          -scheme YeelightBar
+          -configuration Debug
+          -destination 'platform=macOS'
+          -derivedDataPath "$RUNNER_TEMP/TSanDerivedData"
+          -enableThreadSanitizer YES
+          -only-testing:YeelightBarTests/FakeYeelightIntegrationTests
+          CODE_SIGNING_ALLOWED=NO
+          SWIFT_STRICT_CONCURRENCY=complete

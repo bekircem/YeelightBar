@@ -1,0 +1,19 @@
+# Xcode
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+*.xcarchive
+*.dSYM
+
+# Distribution and signing
+dist/
+*.dmg
+*.p12
+*.cer
+AuthKey_*.p8
+*.mobileprovision
+notary-*.json
+
+# macOS
+.DS_Store

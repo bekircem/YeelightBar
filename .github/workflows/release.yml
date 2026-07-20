@@ -1,0 +1,209 @@
+name: Signed Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: macos-26
+    timeout-minutes: 60
+    environment: release
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      ARCHIVE_PATH: ${{ runner.temp }}/YeelightBar.xcarchive
+      EXPORT_PATH: ${{ runner.temp }}/export
+      DIST_PATH: ${{ runner.temp }}/dist
+      KEYCHAIN_PATH: ${{ runner.temp }}/release-signing.keychain-db
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+      APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Validate tag and release metadata
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash Scripts/validate-plists.sh
+          bash Scripts/check-secrets.sh
+          version=$(xcodebuild -project YeelightBar.xcodeproj -scheme YeelightBar -configuration Release -showBuildSettings | awk '/MARKETING_VERSION/ { print $3; exit }')
+          tag=${GITHUB_REF_NAME#v}
+          if [[ ! "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]; then
+            echo "Unsupported release tag format: $tag" >&2
+            exit 1
+          fi
+          if [[ "$tag" != "$version" && "$tag" != "$version"-* ]]; then
+            echo "Tag $tag does not match MARKETING_VERSION $version" >&2
+            exit 1
+          fi
+          echo "version=$tag" >> "$GITHUB_OUTPUT"
+          if [[ "$tag" == *-* ]]; then echo "prerelease=true" >> "$GITHUB_OUTPUT"; else echo "prerelease=false" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Preflight tests and analyzer
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild test -project YeelightBar.xcodeproj -scheme YeelightBar -configuration Debug -destination 'platform=macOS' -derivedDataPath "$RUNNER_TEMP/TestDerivedData" CODE_SIGNING_ALLOWED=NO SWIFT_STRICT_CONCURRENCY=complete
+          xcodebuild analyze -project YeelightBar.xcodeproj -scheme YeelightBar -configuration Release -destination 'platform=macOS' -derivedDataPath "$RUNNER_TEMP/AnalyzeDerivedData" CODE_SIGNING_ALLOWED=NO SWIFT_STRICT_CONCURRENCY=complete
+
+      - name: Import Developer ID certificate and notarization key
+        shell: bash
+        env:
+          DEVELOPER_ID_P12_BASE64: ${{ secrets.DEVELOPER_ID_P12_BASE64 }}
+          DEVELOPER_ID_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+          RELEASE_KEYCHAIN_PASSWORD: ${{ secrets.RELEASE_KEYCHAIN_PASSWORD }}
+          APPLE_API_PRIVATE_KEY_BASE64: ${{ secrets.APPLE_API_PRIVATE_KEY_BASE64 }}
+        run: |
+          set -euo pipefail
+          security create-keychain -p "$RELEASE_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$RELEASE_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          printf '%s' "$DEVELOPER_ID_P12_BASE64" | base64 -D > "$RUNNER_TEMP/developer-id.p12"
+          security import "$RUNNER_TEMP/developer-id.p12" -k "$KEYCHAIN_PATH" -P "$DEVELOPER_ID_P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$RELEASE_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          mkdir -p "$RUNNER_TEMP/private_keys"
+          printf '%s' "$APPLE_API_PRIVATE_KEY_BASE64" | base64 -D > "$RUNNER_TEMP/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8"
+
+      - name: Archive universal Developer ID app
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild archive \
+            -project YeelightBar.xcodeproj \
+            -scheme YeelightBar \
+            -configuration Release \
+            -archivePath "$ARCHIVE_PATH" \
+            -destination 'generic/platform=macOS' \
+            ARCHS='arm64 x86_64' \
+            ONLY_ACTIVE_ARCH=NO \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY='Developer ID Application' \
+            SWIFT_STRICT_CONCURRENCY=complete
+
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>developer-id</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Developer ID Application</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>stripSwiftSymbols</key><true/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$ARCHIVE_PATH" -exportPath "$EXPORT_PATH" -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+
+      - name: Verify app signature, architecture, and entitlements
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="$EXPORT_PATH/YeelightBar.app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          lipo -verify_arch arm64 x86_64 "$app/Contents/MacOS/YeelightBar"
+          codesign -d --entitlements :- "$app" > "$RUNNER_TEMP/entitlements.plist"
+          plutil -extract com.apple.security.app-sandbox raw "$RUNNER_TEMP/entitlements.plist" | grep -qx true
+          plutil -extract com.apple.security.network.client raw "$RUNNER_TEMP/entitlements.plist" | grep -qx true
+          plutil -extract com.apple.security.network.server raw "$RUNNER_TEMP/entitlements.plist" | grep -qx true
+          plutil -extract com.apple.security.files.user-selected.read-write raw "$RUNNER_TEMP/entitlements.plist" | grep -qx true
+          if plutil -extract com.apple.security.get-task-allow raw "$RUNNER_TEMP/entitlements.plist" >/dev/null 2>&1; then
+            echo 'Release artifact contains get-task-allow.' >&2
+            exit 1
+          fi
+
+      - name: Create, sign, notarize, and staple DMG
+        id: artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          version='${{ steps.version.outputs.version }}'
+          mkdir -p "$DIST_PATH"
+          dmg="$DIST_PATH/YeelightBar-${version}.dmg"
+          identity=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | awk -F '"' '/Developer ID Application/ { print $2; exit }')
+          test -n "$identity"
+          bash Scripts/create-dmg.sh "$EXPORT_PATH/YeelightBar.app" "$dmg" "YeelightBar $version"
+          codesign --force --timestamp --sign "$identity" "$dmg"
+          codesign --verify --verbose=2 "$dmg"
+          hdiutil verify "$dmg"
+          xcrun notarytool submit "$dmg" \
+            --key "$RUNNER_TEMP/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8" \
+            --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_ISSUER_ID" \
+            --wait --output-format json > "$DIST_PATH/notary-result.json"
+          submission_id=$(plutil -extract id raw -o - "$DIST_PATH/notary-result.json")
+          status=$(plutil -extract status raw -o - "$DIST_PATH/notary-result.json")
+          xcrun notarytool log "$submission_id" \
+            --key "$RUNNER_TEMP/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8" \
+            --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_ISSUER_ID" > "$DIST_PATH/notary-log.json"
+          test "$status" = Accepted
+          xcrun stapler staple "$dmg"
+          xcrun stapler validate "$dmg"
+          spctl --assess --type execute --verbose=4 "$EXPORT_PATH/YeelightBar.app"
+          spctl --assess --type open --context context:primary-signature --verbose=4 "$dmg"
+          shasum -a 256 "$dmg" > "$dmg.sha256"
+          echo "dmg=$dmg" >> "$GITHUB_OUTPUT"
+          echo "sha=$(shasum -a 256 "$dmg" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Attest DMG provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: ${{ steps.artifact.outputs.dmg }}
+
+      - name: Retain dSYM privately
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: YeelightBar-${{ steps.version.outputs.version }}-dSYM
+          path: ${{ env.ARCHIVE_PATH }}/dSYMs/YeelightBar.app.dSYM
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          prerelease=()
+          if [[ '${{ steps.version.outputs.prerelease }}' == true ]]; then prerelease=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" \
+            "${{ steps.artifact.outputs.dmg }}" \
+            "${{ steps.artifact.outputs.dmg }}.sha256" \
+            "$DIST_PATH/notary-result.json" \
+            "$DIST_PATH/notary-log.json" \
+            --verify-tag --generate-notes "${prerelease[@]}"
+
+      - name: Update personal Homebrew tap after stable release
+        if: steps.version.outputs.prerelease == 'false'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh repo clone bekircem/homebrew-yeelightbar "$RUNNER_TEMP/homebrew-yeelightbar"
+          bash Scripts/update-homebrew-cask.sh '${{ steps.version.outputs.version }}' '${{ steps.artifact.outputs.sha }}' "$RUNNER_TEMP/homebrew-yeelightbar/Casks/yeelightbar.rb"
+          cd "$RUNNER_TEMP/homebrew-yeelightbar"
+          git config user.name github-actions
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Casks/yeelightbar.rb
+          git commit -m "Update YeelightBar to ${{ steps.version.outputs.version }}"
+          git push
+
+      - name: Delete temporary signing credentials
+        if: always()
+        shell: bash
+        run: |
+          security delete-keychain "$KEYCHAIN_PATH" >/dev/null 2>&1 || true
+          rm -f "$RUNNER_TEMP/developer-id.p12" "$RUNNER_TEMP/ExportOptions.plist"
+          rm -rf "$RUNNER_TEMP/private_keys"
