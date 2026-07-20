@@ -19,6 +19,7 @@ No Critical or High security finding is known after the implemented hardening. T
 - The privacy manifest is embedded in the app bundle.
 - Plist, entitlement, workflow YAML, Homebrew template, and repository secret checks pass.
 - Application source contains no `@unchecked Sendable`; the only occurrence is the test-only fake TCP server.
+- GitHub Actions CI passes on both the Apple Silicon `macos-26` and Intel `macos-26-intel` runners.
 
 ## Implemented release controls
 
@@ -31,13 +32,12 @@ No Critical or High security finding is known after the implemented hardening. T
 
 ## Remaining release gates
 
-1. Initialize/push the repository to `bekircem/YeelightBar`, enable branch protection and the protected `release` environment, and configure the secrets listed in `RELEASE_CHECKLIST.md`.
-2. Run CI on both `macos-26` and `macos-26-intel`; inspect every warning and retain the run URL with the release evidence.
-3. Resolve or formally account for two current Xcode 26 toolchain warnings: its bundled XCTest binaries declare macOS 14 while the required test target is macOS 13; and `appintentsmetadataprocessor` reports that extraction was skipped because the app intentionally has no AppIntents dependency, even though `ENABLE_APP_INTENTS_METADATA_EXTRACTION=NO`. No unnecessary AppIntents dependency was added merely to hide the latter warning. The application remains targeted at macOS 13 and compiler/analyzer code diagnostics are clean, but the strict zero-warning gate is not yet literally met with this Xcode version.
-4. Produce `v1.0.0-rc.1` through the protected workflow and verify Developer ID signature, expected entitlements, absence of `get-task-allow`, accepted notarization, staple, Gatekeeper, DMG integrity, and artifact attestation.
-5. Complete the clean macOS 13/current macOS, Apple Silicon/Intel, signed sandbox, Homebrew, accessibility, sleep/wake/network-change, and two-real-bulb smoke tests.
-6. Record Instruments results for idle CPU, 30-minute memory growth, first color-editor stall, and discovery/frame stress limits.
-7. Promote to `v1.0.0` only after every checkbox in `RELEASE_CHECKLIST.md` is closed with evidence.
+1. Enable branch protection and the protected `release` environment, then configure the secrets listed in `RELEASE_CHECKLIST.md`.
+2. Resolve or formally account for two current Xcode 26 toolchain warnings: its bundled XCTest binaries declare macOS 14 while the required test target is macOS 13; and `appintentsmetadataprocessor` reports that extraction was skipped because the app intentionally has no AppIntents dependency, even though `ENABLE_APP_INTENTS_METADATA_EXTRACTION=NO`. No unnecessary AppIntents dependency was added merely to hide the latter warning. The application remains targeted at macOS 13 and compiler/analyzer code diagnostics are clean, but the strict zero-warning gate is not yet literally met with this Xcode version.
+3. Produce `v1.0.0-rc.1` through the protected workflow and verify Developer ID signature, expected entitlements, absence of `get-task-allow`, accepted notarization, staple, Gatekeeper, DMG integrity, and artifact attestation.
+4. Complete the clean macOS 13/current macOS, Apple Silicon/Intel, signed sandbox, Homebrew, accessibility, sleep/wake/network-change, and two-real-bulb smoke tests.
+5. Record Instruments results for idle CPU, 30-minute memory growth, first color-editor stall, and discovery/frame stress limits.
+6. Promote to `v1.0.0` only after every checkbox in `RELEASE_CHECKLIST.md` is closed with evidence.
 
 ## Suggested evidence retention
 
