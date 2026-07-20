@@ -112,7 +112,7 @@ jobs:
           app="$EXPORT_PATH/YeelightBar.app"
           codesign --verify --deep --strict --verbose=2 "$app"
           lipo "$app/Contents/MacOS/YeelightBar" -verify_arch arm64 x86_64
-          codesign -d --entitlements :- "$app" > "$RUNNER_TEMP/entitlements.plist"
+          codesign -d --entitlements - --xml "$app" > "$RUNNER_TEMP/entitlements.plist"
           plutil -extract com.apple.security.app-sandbox raw "$RUNNER_TEMP/entitlements.plist" | grep -qx true
           plutil -extract com.apple.security.network.client raw "$RUNNER_TEMP/entitlements.plist" | grep -qx true
           plutil -extract com.apple.security.network.server raw "$RUNNER_TEMP/entitlements.plist" | grep -qx true
