@@ -241,8 +241,10 @@ final class AppPreferencesTests: XCTestCase {
 
     func testPreferenceSaveSchedulerCoalescesDeferredSaves() async {
         var savedPreferences: [AppPreferences] = []
+        let saveExpectation = expectation(description: "Deferred preferences are saved")
         let scheduler = PreferenceSaveScheduler(delay: 0.05) { preferences in
             savedPreferences.append(preferences)
+            saveExpectation.fulfill()
         }
 
         var first = AppPreferences.defaults
@@ -255,7 +257,7 @@ final class AppPreferencesTests: XCTestCase {
 
         XCTAssertTrue(savedPreferences.isEmpty)
 
-        try? await Task.sleep(nanoseconds: 120_000_000)
+        await fulfillment(of: [saveExpectation], timeout: 2)
 
         XCTAssertEqual(savedPreferences.count, 1)
         XCTAssertEqual(savedPreferences.first?.commandTimeout, 9)
