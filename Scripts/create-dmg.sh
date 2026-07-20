@@ -14,18 +14,24 @@ if [[ ! "$volume_name" =~ ^[A-Za-z0-9._\ -]+$ ]]; then
   exit 65
 fi
 work_dir=$(mktemp -d)
-mount_point="$work_dir/mount"
+mount_point=
 read_write_dmg="$work_dir/read-write.dmg"
 
 cleanup() {
-  hdiutil detach "$mount_point" -force >/dev/null 2>&1 || true
+  if [[ -n "$mount_point" ]]; then
+    hdiutil detach "$mount_point" -force >/dev/null 2>&1 || true
+  fi
   rm -rf "$work_dir"
 }
 trap cleanup EXIT
 
-mkdir -p "$mount_point"
 hdiutil create -quiet -size 80m -fs HFS+ -volname "$volume_name" "$read_write_dmg"
-hdiutil attach -quiet -nobrowse -mountpoint "$mount_point" "$read_write_dmg"
+attach_output=$(hdiutil attach -nobrowse -readwrite "$read_write_dmg")
+mount_point=$(printf '%s\n' "$attach_output" | awk -F '\t' '$2 ~ /Apple_(HFS|APFS)/ { print $NF; exit }')
+if [[ -z "$mount_point" || ! -d "$mount_point" ]]; then
+  echo "Could not determine the mounted disk image path." >&2
+  exit 66
+fi
 ditto "$app_path" "$mount_point/YeelightBar.app"
 ln -s /Applications "$mount_point/Applications"
 
