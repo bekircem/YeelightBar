@@ -2,8 +2,6 @@
 
 YeelightBar is a native, menu-bar-only macOS controller for Yeelight-compatible lights on your local network. It provides power, brightness, temperature, color, reusable modes, color flows, favorites, and global shortcuts without a cloud account.
 
-> Release status: pre-release. Use `v1.0.0-rc.1` for clean-account and real-device validation before publishing `v1.0.0`.
-
 ## Requirements
 
 - macOS Ventura 13 or later
