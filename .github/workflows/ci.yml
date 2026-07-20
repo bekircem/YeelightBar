@@ -31,6 +31,11 @@ jobs:
       - name: Scan committed source for secrets
         run: bash Scripts/check-secrets.sh
 
+      - name: Test notarization workflow scripts
+        run: |
+          bash -n Scripts/notarization-metadata.sh Scripts/wait-for-notarization.sh Scripts/test-notarization-workflow.sh
+          bash Scripts/test-notarization-workflow.sh
+
       - name: Debug tests with complete concurrency checking
         run: >-
           xcodebuild test

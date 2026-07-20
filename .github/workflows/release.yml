@@ -3,6 +3,16 @@ name: Signed Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to resume (for example v1.0.0-rc.8)
+        required: true
+        type: string
+      source_run_id:
+        description: Run ID containing the preserved DMG and submission metadata
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -10,9 +20,10 @@ permissions:
 jobs:
   release:
     runs-on: macos-26
-    timeout-minutes: 180
+    timeout-minutes: 345
     environment: release
     permissions:
+      actions: read
       contents: write
       id-token: write
       attestations: write
@@ -26,43 +37,89 @@ jobs:
       APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
 
     steps:
-      - name: Check out source
+      - name: Resolve release invocation
+        id: invocation
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_TAG: ${{ github.ref_name }}
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
+          INPUT_SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == push ]]; then
+            mode=build
+            release_tag=$PUSH_TAG
+            source_run_id=$GITHUB_RUN_ID
+          else
+            mode=resume
+            release_tag=$INPUT_RELEASE_TAG
+            source_run_id=$INPUT_SOURCE_RUN_ID
+            if [[ ! "$source_run_id" =~ ^[1-9][0-9]*$ ]]; then
+              echo 'Source run ID must be a positive integer.' >&2
+              exit 64
+            fi
+          fi
+
+          if [[ ! "$release_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]; then
+            echo "Unsupported release tag format: $release_tag" >&2
+            exit 64
+          fi
+
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+          echo "source_run_id=$source_run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Check out release source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ steps.invocation.outputs.release_tag }}
 
       - name: Validate tag and release metadata
         id: version
         shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.invocation.outputs.release_tag }}
         run: |
           set -euo pipefail
           bash Scripts/validate-plists.sh
           bash Scripts/check-secrets.sh
           version=$(xcodebuild -project YeelightBar.xcodeproj -scheme YeelightBar -configuration Release -showBuildSettings | awk '/MARKETING_VERSION/ { print $3; exit }')
-          tag=${GITHUB_REF_NAME#v}
-          if [[ ! "$tag" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$ ]]; then
-            echo "Unsupported release tag format: $tag" >&2
+          tag_version=${RELEASE_TAG#v}
+          if [[ "$tag_version" != "$version" && "$tag_version" != "$version"-* ]]; then
+            echo "Tag $RELEASE_TAG does not match MARKETING_VERSION $version" >&2
             exit 1
           fi
-          if [[ "$tag" != "$version" && "$tag" != "$version"-* ]]; then
-            echo "Tag $tag does not match MARKETING_VERSION $version" >&2
-            exit 1
-          fi
-          echo "version=$tag" >> "$GITHUB_OUTPUT"
-          if [[ "$tag" == *-* ]]; then echo "prerelease=true" >> "$GITHUB_OUTPUT"; else echo "prerelease=false" >> "$GITHUB_OUTPUT"; fi
+          echo "version=$tag_version" >> "$GITHUB_OUTPUT"
+          if [[ "$tag_version" == *-* ]]; then echo "prerelease=true" >> "$GITHUB_OUTPUT"; else echo "prerelease=false" >> "$GITHUB_OUTPUT"; fi
 
       - name: Preflight tests and analyzer
+        if: steps.invocation.outputs.mode == 'build'
         shell: bash
         run: |
           set -euo pipefail
+          bash -n Scripts/notarization-metadata.sh Scripts/wait-for-notarization.sh Scripts/test-notarization-workflow.sh
+          bash Scripts/test-notarization-workflow.sh
           xcodebuild test -project YeelightBar.xcodeproj -scheme YeelightBar -configuration Debug -destination 'platform=macOS' -derivedDataPath "$RUNNER_TEMP/TestDerivedData" CODE_SIGNING_ALLOWED=NO SWIFT_STRICT_CONCURRENCY=complete
           xcodebuild analyze -project YeelightBar.xcodeproj -scheme YeelightBar -configuration Release -destination 'platform=macOS' -derivedDataPath "$RUNNER_TEMP/AnalyzeDerivedData" CODE_SIGNING_ALLOWED=NO SWIFT_STRICT_CONCURRENCY=complete
 
-      - name: Import Developer ID certificate and notarization key
+      - name: Import notarization key
+        shell: bash
+        env:
+          APPLE_API_PRIVATE_KEY_BASE64: ${{ secrets.APPLE_API_PRIVATE_KEY_BASE64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/private_keys"
+          printf '%s' "$APPLE_API_PRIVATE_KEY_BASE64" | base64 -D > "$RUNNER_TEMP/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8"
+          chmod 600 "$RUNNER_TEMP/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8"
+
+      - name: Import Developer ID certificate
+        if: steps.invocation.outputs.mode == 'build'
         shell: bash
         env:
           DEVELOPER_ID_P12_BASE64: ${{ secrets.DEVELOPER_ID_P12_BASE64 }}
           DEVELOPER_ID_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
           RELEASE_KEYCHAIN_PASSWORD: ${{ secrets.RELEASE_KEYCHAIN_PASSWORD }}
-          APPLE_API_PRIVATE_KEY_BASE64: ${{ secrets.APPLE_API_PRIVATE_KEY_BASE64 }}
         run: |
           set -euo pipefail
           security create-keychain -p "$RELEASE_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
@@ -72,10 +129,9 @@ jobs:
           security import "$RUNNER_TEMP/developer-id.p12" -k "$KEYCHAIN_PATH" -P "$DEVELOPER_ID_P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
           security set-key-partition-list -S apple-tool:,apple: -s -k "$RELEASE_KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychains -d user -s "$KEYCHAIN_PATH"
-          mkdir -p "$RUNNER_TEMP/private_keys"
-          printf '%s' "$APPLE_API_PRIVATE_KEY_BASE64" | base64 -D > "$RUNNER_TEMP/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8"
 
       - name: Archive universal Developer ID app
+        if: steps.invocation.outputs.mode == 'build'
         shell: bash
         run: |
           set -euo pipefail
@@ -106,6 +162,7 @@ jobs:
           xcodebuild -exportArchive -archivePath "$ARCHIVE_PATH" -exportPath "$EXPORT_PATH" -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
 
       - name: Verify app signature, architecture, and entitlements
+        if: steps.invocation.outputs.mode == 'build'
         shell: bash
         run: |
           set -euo pipefail
@@ -122,46 +179,34 @@ jobs:
             exit 1
           fi
 
-      - name: Create, sign, notarize, and staple DMG
-        id: artifact
+      - name: Create and verify signed DMG
+        if: steps.invocation.outputs.mode == 'build'
         shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          version='${{ steps.version.outputs.version }}'
           mkdir -p "$DIST_PATH"
-          dmg="$DIST_PATH/YeelightBar-${version}.dmg"
+          dmg="$DIST_PATH/YeelightBar-${RELEASE_VERSION}.dmg"
           identity=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | awk -F '"' '/Developer ID Application/ { print $2; exit }')
           test -n "$identity"
-          bash Scripts/create-dmg.sh "$EXPORT_PATH/YeelightBar.app" "$dmg" "YeelightBar $version"
+          bash Scripts/create-dmg.sh "$EXPORT_PATH/YeelightBar.app" "$dmg" "YeelightBar $RELEASE_VERSION"
           codesign --force --timestamp --sign "$identity" "$dmg"
           codesign --verify --verbose=2 "$dmg"
           hdiutil verify "$dmg"
-          xcrun notarytool submit "$dmg" \
-            --key "$RUNNER_TEMP/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8" \
-            --key-id "$APPLE_API_KEY_ID" \
-            --issuer "$APPLE_API_ISSUER_ID" \
-            --wait --output-format json > "$DIST_PATH/notary-result.json"
-          submission_id=$(plutil -extract id raw -o - "$DIST_PATH/notary-result.json")
-          status=$(plutil -extract status raw -o - "$DIST_PATH/notary-result.json")
-          xcrun notarytool log "$submission_id" \
-            --key "$RUNNER_TEMP/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8" \
-            --key-id "$APPLE_API_KEY_ID" \
-            --issuer "$APPLE_API_ISSUER_ID" > "$DIST_PATH/notary-log.json"
-          test "$status" = Accepted
-          xcrun stapler staple "$dmg"
-          xcrun stapler validate "$dmg"
-          spctl --assess --type execute --verbose=4 "$EXPORT_PATH/YeelightBar.app"
-          spctl --assess --type open --context context:primary-signature --verbose=4 "$dmg"
-          shasum -a 256 "$dmg" > "$dmg.sha256"
-          echo "dmg=$dmg" >> "$GITHUB_OUTPUT"
-          echo "sha=$(shasum -a 256 "$dmg" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
 
-      - name: Attest DMG provenance
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+      - name: Preserve signed DMG before notarization
+        if: steps.invocation.outputs.mode == 'build'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          subject-path: ${{ steps.artifact.outputs.dmg }}
+          name: YeelightBar-${{ steps.version.outputs.version }}-notarization-pending
+          path: ${{ env.DIST_PATH }}/YeelightBar-${{ steps.version.outputs.version }}.dmg
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
 
       - name: Retain dSYM privately
+        if: steps.invocation.outputs.mode == 'build'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: YeelightBar-${{ steps.version.outputs.version }}-dSYM
@@ -169,42 +214,211 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
+      - name: Submit DMG to Apple without blocking
+        if: steps.invocation.outputs.mode == 'build'
+        id: submit
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.invocation.outputs.release_tag }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          dmg="$DIST_PATH/YeelightBar-${RELEASE_VERSION}.dmg"
+          submission_result="$DIST_PATH/notary-submission.json"
+          metadata="$DIST_PATH/release-metadata.plist"
+          key_path="$RUNNER_TEMP/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8"
+
+          xcrun notarytool submit "$dmg" \
+            --key "$key_path" \
+            --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_ISSUER_ID" \
+            --no-s3-acceleration \
+            --no-wait \
+            --output-format json > "$submission_result"
+
+          release_commit=$(git rev-parse HEAD)
+          submission_id=$(bash Scripts/notarization-metadata.sh create \
+            "$metadata" \
+            "$submission_result" \
+            "$dmg" \
+            "$RELEASE_TAG" \
+            "$RELEASE_VERSION" \
+            "$release_commit" \
+            "$GITHUB_RUN_ID")
+
+          echo "submission_id=$submission_id" >> "$GITHUB_OUTPUT"
+          echo "Apple notarization submission created: $submission_id"
+
+      - name: Preserve notarization submission metadata
+        if: steps.invocation.outputs.mode == 'build'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: YeelightBar-${{ steps.version.outputs.version }}-notarization-metadata
+          path: |
+            ${{ env.DIST_PATH }}/notary-submission.json
+            ${{ env.DIST_PATH }}/release-metadata.plist
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Recover preserved notarization state
+        if: steps.invocation.outputs.mode == 'resume'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          SOURCE_RUN_ID: ${{ steps.invocation.outputs.source_run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$DIST_PATH"
+          gh run download "$SOURCE_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "YeelightBar-${RELEASE_VERSION}-notarization-pending" \
+            --dir "$DIST_PATH"
+          gh run download "$SOURCE_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "YeelightBar-${RELEASE_VERSION}-notarization-metadata" \
+            --dir "$DIST_PATH"
+
+      - name: Validate preserved DMG and submission identity
+        id: state
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.invocation.outputs.release_tag }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          SOURCE_RUN_ID: ${{ steps.invocation.outputs.source_run_id }}
+        run: |
+          set -euo pipefail
+          dmg="$DIST_PATH/YeelightBar-${RELEASE_VERSION}.dmg"
+          metadata="$DIST_PATH/release-metadata.plist"
+          submission_result="$DIST_PATH/notary-submission.json"
+          test -f "$dmg"
+          test -f "$metadata"
+          test -f "$submission_result"
+
+          checked_out_commit=$(git rev-parse HEAD)
+          submission_id=$(bash Scripts/notarization-metadata.sh validate \
+            "$metadata" \
+            "$submission_result" \
+            "$dmg" \
+            "$RELEASE_TAG" \
+            "$RELEASE_VERSION" \
+            "$checked_out_commit" \
+            "$SOURCE_RUN_ID")
+
+          codesign --verify --verbose=2 "$dmg"
+          hdiutil verify "$dmg"
+          echo "submission_id=$submission_id" >> "$GITHUB_OUTPUT"
+          echo "Validated preserved notarization submission: $submission_id"
+
+      - name: Remove code-signing credentials before Apple wait
+        if: steps.invocation.outputs.mode == 'build'
+        shell: bash
+        run: |
+          security delete-keychain "$KEYCHAIN_PATH" >/dev/null 2>&1 || true
+          rm -f "$RUNNER_TEMP/developer-id.p12" "$RUNNER_TEMP/ExportOptions.plist" "$RUNNER_TEMP/entitlements.plist"
+
+      - name: Poll Apple notarization with visible status
+        shell: bash
+        env:
+          NOTARY_POLL_INTERVAL_SECONDS: 120
+          NOTARY_WAIT_TIMEOUT_SECONDS: 18000
+          NOTARY_MAX_TRANSIENT_FAILURES: 5
+          SUBMISSION_ID: ${{ steps.state.outputs.submission_id }}
+        run: |
+          set -euo pipefail
+          bash Scripts/wait-for-notarization.sh \
+            "$SUBMISSION_ID" \
+            "$RUNNER_TEMP/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8" \
+            "$APPLE_API_KEY_ID" \
+            "$APPLE_API_ISSUER_ID" \
+            "$DIST_PATH/notary-result.json" \
+            "$DIST_PATH/notary-log.json"
+
+      - name: Staple and verify notarized DMG
+        id: final
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          dmg="$DIST_PATH/YeelightBar-${RELEASE_VERSION}.dmg"
+          xcrun stapler staple "$dmg"
+          xcrun stapler validate "$dmg"
+          hdiutil verify "$dmg"
+          spctl --assess --type open --context context:primary-signature --verbose=4 "$dmg"
+
+          mount_point=
+          cleanup_mount() {
+            if [[ -n "$mount_point" ]]; then hdiutil detach "$mount_point" -force >/dev/null 2>&1 || true; fi
+          }
+          trap cleanup_mount EXIT
+          attach_output=$(hdiutil attach -nobrowse -readonly "$dmg")
+          mount_point=$(printf '%s\n' "$attach_output" | awk -F '\t' '$2 ~ /Apple_(HFS|APFS)/ { print $NF; exit }')
+          if [[ -z "$mount_point" || ! -d "$mount_point/YeelightBar.app" ]]; then
+            echo 'Could not locate YeelightBar.app in the notarized DMG.' >&2
+            exit 66
+          fi
+          codesign --verify --deep --strict --verbose=2 "$mount_point/YeelightBar.app"
+          spctl --assess --type execute --verbose=4 "$mount_point/YeelightBar.app"
+          hdiutil detach "$mount_point"
+          mount_point=
+          trap - EXIT
+
+          shasum -a 256 "$dmg" > "$dmg.sha256"
+          echo "sha=$(shasum -a 256 "$dmg" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Attest DMG provenance
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: ${{ env.DIST_PATH }}/YeelightBar-${{ steps.version.outputs.version }}.dmg
+
       - name: Publish GitHub release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.invocation.outputs.release_tag }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
         run: |
           set -euo pipefail
-          prerelease=()
-          if [[ '${{ steps.version.outputs.prerelease }}' == true ]]; then prerelease=(--prerelease); fi
-          gh release create "$GITHUB_REF_NAME" \
-            "${{ steps.artifact.outputs.dmg }}" \
-            "${{ steps.artifact.outputs.dmg }}.sha256" \
-            "$DIST_PATH/notary-result.json" \
-            "$DIST_PATH/notary-log.json" \
-            --verify-tag --generate-notes "${prerelease[@]}"
+          dmg="$DIST_PATH/YeelightBar-${RELEASE_VERSION}.dmg"
+          assets=(
+            "$dmg"
+            "$dmg.sha256"
+            "$DIST_PATH/notary-result.json"
+            "$DIST_PATH/notary-log.json"
+          )
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
+          else
+            prerelease=()
+            if [[ "$PRERELEASE" == true ]]; then prerelease=(--prerelease); fi
+            gh release create "$RELEASE_TAG" "${assets[@]}" --verify-tag --generate-notes "${prerelease[@]}"
+          fi
 
       - name: Update personal Homebrew tap after stable release
         if: steps.version.outputs.prerelease == 'false'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          DMG_SHA: ${{ steps.final.outputs.sha }}
         run: |
           set -euo pipefail
           gh repo clone bekircem/homebrew-yeelightbar "$RUNNER_TEMP/homebrew-yeelightbar"
-          bash Scripts/update-homebrew-cask.sh '${{ steps.version.outputs.version }}' '${{ steps.artifact.outputs.sha }}' "$RUNNER_TEMP/homebrew-yeelightbar/Casks/yeelightbar.rb"
+          bash Scripts/update-homebrew-cask.sh "$RELEASE_VERSION" "$DMG_SHA" "$RUNNER_TEMP/homebrew-yeelightbar/Casks/yeelightbar.rb"
           cd "$RUNNER_TEMP/homebrew-yeelightbar"
           git config user.name github-actions
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add Casks/yeelightbar.rb
-          git commit -m "Update YeelightBar to ${{ steps.version.outputs.version }}"
+          git commit -m "Update YeelightBar to $RELEASE_VERSION"
           git push
 
-      - name: Delete temporary signing credentials
+      - name: Delete temporary signing credentials and release files
         if: always()
         shell: bash
         run: |
           security delete-keychain "$KEYCHAIN_PATH" >/dev/null 2>&1 || true
-          rm -f "$RUNNER_TEMP/developer-id.p12" "$RUNNER_TEMP/ExportOptions.plist"
+          rm -f "$RUNNER_TEMP/developer-id.p12" "$RUNNER_TEMP/ExportOptions.plist" "$RUNNER_TEMP/entitlements.plist"
           rm -rf "$RUNNER_TEMP/private_keys"
           rm -rf "$GITHUB_WORKSPACE/.release"
