@@ -17,10 +17,10 @@ jobs:
       id-token: write
       attestations: write
     env:
-      ARCHIVE_PATH: ${{ runner.temp }}/YeelightBar.xcarchive
-      EXPORT_PATH: ${{ runner.temp }}/export
-      DIST_PATH: ${{ runner.temp }}/dist
-      KEYCHAIN_PATH: ${{ runner.temp }}/release-signing.keychain-db
+      ARCHIVE_PATH: ${{ github.workspace }}/.release/YeelightBar.xcarchive
+      EXPORT_PATH: ${{ github.workspace }}/.release/export
+      DIST_PATH: ${{ github.workspace }}/.release/dist
+      KEYCHAIN_PATH: ${{ github.workspace }}/.release/release-signing.keychain-db
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
       APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
@@ -207,3 +207,4 @@ jobs:
           security delete-keychain "$KEYCHAIN_PATH" >/dev/null 2>&1 || true
           rm -f "$RUNNER_TEMP/developer-id.p12" "$RUNNER_TEMP/ExportOptions.plist"
           rm -rf "$RUNNER_TEMP/private_keys"
+          rm -rf "$GITHUB_WORKSPACE/.release"
