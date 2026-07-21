@@ -7,7 +7,7 @@ cask "yeelightbar" do
   desc "Native menu bar controller for Yeelight-compatible LAN lights"
   homepage "https://github.com/bekircem/YeelightBar"
 
-  depends_on macos: ">= :ventura"
+  depends_on macos: :ventura
 
   app "YeelightBar.app"
 
