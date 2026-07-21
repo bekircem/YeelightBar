@@ -4,8 +4,7 @@ set -euo pipefail
 plutil -lint \
   YeelightBar/Info.plist \
   YeelightBar/YeelightBar.entitlements \
-  YeelightBar/PrivacyInfo.xcprivacy \
-  ExportOptions-DeveloperID.plist
+  YeelightBar/PrivacyInfo.xcprivacy
 
 grep -q 'io.github.bekircem.yeelightbar' YeelightBar.xcodeproj/project.pbxproj
 grep -q 'MARKETING_VERSION = 1.0.0;' YeelightBar.xcodeproj/project.pbxproj

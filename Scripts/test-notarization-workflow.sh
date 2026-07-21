@@ -134,8 +134,23 @@ if grep -Fq 'prerelease=()' "$release_workflow" || grep -Fq 'prerelease[@]' "$re
   echo 'Release workflow must not expand an empty prerelease array under Bash set -u.' >&2
   exit 1
 fi
-grep -Fq 'gh release create "$RELEASE_TAG" "${assets[@]}" --verify-tag --generate-notes --prerelease' "$release_workflow"
-grep -Fq 'gh release create "$RELEASE_TAG" "${assets[@]}" --verify-tag --generate-notes' "$release_workflow"
+grep -Fq 'printf '\''%s  %s\n'\'' "$dmg_sha" "$(basename "$dmg")" > "$dmg.sha256"' "$release_workflow"
+grep -Fq 'gh release create "$RELEASE_TAG" --verify-tag --generate-notes --draft --prerelease' "$release_workflow"
+grep -Fq 'gh release create "$RELEASE_TAG" --verify-tag --generate-notes --draft' "$release_workflow"
+grep -Fq 'gh release upload "$RELEASE_TAG" "${assets[@]}"' "$release_workflow"
+grep -Fq 'gh release edit "$RELEASE_TAG" --draft=false --prerelease=true' "$release_workflow"
+grep -Fq 'gh release edit "$RELEASE_TAG" --draft=false --prerelease=false --latest' "$release_workflow"
+grep -Fq 'published_sha=$(gh release download "$RELEASE_TAG" --pattern "$checksum_asset" --output -' "$release_workflow"
+grep -Fq 'Published release checksum does not match the verified DMG; refusing to mutate the release.' "$release_workflow"
+
+release_create_line=$(grep -nF 'gh release create "$RELEASE_TAG" --verify-tag --generate-notes --draft' "$release_workflow" | tail -n1 | cut -d: -f1)
+release_upload_line=$(grep -nF 'gh release upload "$RELEASE_TAG" "${assets[@]}"' "$release_workflow" | tail -n1 | cut -d: -f1)
+release_publish_line=$(grep -nF 'gh release edit "$RELEASE_TAG" --draft=false --prerelease=false --latest' "$release_workflow" | cut -d: -f1)
+test -n "$release_create_line"
+test -n "$release_upload_line"
+test -n "$release_publish_line"
+test "$release_create_line" -lt "$release_upload_line"
+test "$release_upload_line" -lt "$release_publish_line"
 
 homebrew_auth_line=$(grep -nF 'gh auth setup-git' "$release_workflow" | cut -d: -f1)
 homebrew_clone_line=$(grep -nF 'gh repo clone bekircem/homebrew-yeelightbar' "$release_workflow" | cut -d: -f1)
