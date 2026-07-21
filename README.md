@@ -36,8 +36,13 @@ brew install --cask bekircem/yeelightbar/yeelightbar
 Update later with:
 
 ```sh
-brew upgrade --cask yeelightbar
+brew upgrade --cask --greedy-auto-updates yeelightbar
 ```
+
+Starting with version 1.1.0, Homebrew installs can also use YeelightBar's signed in-app updater. The cask declares this with `auto_updates true`; both update paths install the same Developer ID-signed and notarized app.
+
+> [!IMPORTANT]
+> Version 1.0.0 does not contain the in-app updater. Users on 1.0.0 must install 1.1.0 once from the DMG or Homebrew; later versions can be installed from **Check for Updates…**.
 
 ### Signed DMG
 
@@ -86,7 +91,7 @@ Compatibility depends on support for the local Yeelight LAN protocol, not the br
 - Open **Settings → Modes & Flows** to save the current static look or create a flow.
 - Open **Settings → Shortcuts** to record global actions or direct mode shortcuts.
 - Use **Settings → Devices** to approve, select, or forget trusted lights.
-- Use **Check for Updates…** to open the latest GitHub release.
+- Use **Check for Updates…** to check the signed Sparkle feed and install an available update inside the app.
 
 ## Security and privacy
 
@@ -149,5 +154,7 @@ YeelightBar implements the local protocol described in the [Yeelight WiFi Light 
 ## License and trademark
 
 Copyright © 2026 bekircem. Source code is available under the [GNU General Public License v3.0](LICENSE).
+
+The bundled Sparkle updater and its transitive components are covered by their respective [third-party notices](YeelightBar/Resources/ThirdPartyNotices.txt).
 
 YeelightBar is an independent project and is not affiliated with, endorsed by, or sponsored by Yeelight. Yeelight and other marks belong to their respective owners.

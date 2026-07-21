@@ -14,6 +14,8 @@ YeelightBar includes no analytics, advertising, telemetry, user account, cloud s
 
 The app sends SSDP-like discovery datagrams and Yeelight protocol commands on the local network. The Yeelight LAN protocol is plaintext and unauthenticated, so other parties with access to the same network may be able to observe or imitate this traffic.
 
+When you choose **Check for Updates…**, the app requests YeelightBar's signed update feed and release artifact from GitHub over HTTPS. Automatic background update checks are disabled. No device information or preference data is included in the request.
+
 ## Diagnostics
 
 Unified logs treat messages as private/hash-masked. The in-app diagnostic ring is bounded and sanitizes control characters and long remote messages. Review copied diagnostics before sharing them publicly.

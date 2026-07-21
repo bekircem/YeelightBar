@@ -13,10 +13,14 @@ enum YeelightBarMain {
 }
 
 private struct YeelightBarApp: App {
+    private let updateController: SparkleUpdateController
     @StateObject private var state: AppState
 
     init() {
-        let state = AppState()
+        let updateController = SparkleUpdateController()
+        self.updateController = updateController
+
+        let state = AppState(updateChecker: updateController)
         _state = StateObject(wrappedValue: state)
 
         DispatchQueue.main.async { [state] in

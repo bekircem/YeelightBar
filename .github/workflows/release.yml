@@ -32,6 +32,7 @@ jobs:
       EXPORT_PATH: ${{ github.workspace }}/.release/export
       DIST_PATH: ${{ github.workspace }}/.release/dist
       KEYCHAIN_PATH: ${{ github.workspace }}/.release/release-signing.keychain-db
+      SOURCE_PACKAGES_PATH: ${{ github.workspace }}/.release/SourcePackages
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
       APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
       APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
@@ -93,6 +94,17 @@ jobs:
           echo "version=$tag_version" >> "$GITHUB_OUTPUT"
           if [[ "$tag_version" == *-* ]]; then echo "prerelease=true" >> "$GITHUB_OUTPUT"; else echo "prerelease=false" >> "$GITHUB_OUTPUT"; fi
 
+      - name: Resolve pinned Swift package dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -resolvePackageDependencies \
+            -project YeelightBar.xcodeproj \
+            -scheme YeelightBar \
+            -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_PATH"
+          test -x "$SOURCE_PACKAGES_PATH/artifacts/sparkle/Sparkle/bin/generate_appcast"
+          test -x "$SOURCE_PACKAGES_PATH/artifacts/sparkle/Sparkle/bin/sign_update"
+
       - name: Preflight tests and analyzer
         if: steps.invocation.outputs.mode == 'build'
         shell: bash
@@ -100,8 +112,8 @@ jobs:
           set -euo pipefail
           bash -n Scripts/notarization-metadata.sh Scripts/wait-for-notarization.sh Scripts/test-notarization-workflow.sh
           bash Scripts/test-notarization-workflow.sh
-          xcodebuild test -project YeelightBar.xcodeproj -scheme YeelightBar -configuration Debug -destination 'platform=macOS' -derivedDataPath "$RUNNER_TEMP/TestDerivedData" CODE_SIGNING_ALLOWED=NO SWIFT_STRICT_CONCURRENCY=complete
-          xcodebuild analyze -project YeelightBar.xcodeproj -scheme YeelightBar -configuration Release -destination 'platform=macOS' -derivedDataPath "$RUNNER_TEMP/AnalyzeDerivedData" CODE_SIGNING_ALLOWED=NO SWIFT_STRICT_CONCURRENCY=complete
+          xcodebuild test -project YeelightBar.xcodeproj -scheme YeelightBar -configuration Debug -destination 'platform=macOS' -derivedDataPath "$RUNNER_TEMP/TestDerivedData" -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_PATH" -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO SWIFT_STRICT_CONCURRENCY=complete
+          xcodebuild analyze -project YeelightBar.xcodeproj -scheme YeelightBar -configuration Release -destination 'platform=macOS' -derivedDataPath "$RUNNER_TEMP/AnalyzeDerivedData" -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_PATH" -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO SWIFT_STRICT_CONCURRENCY=complete
 
       - name: Import notarization key
         shell: bash
@@ -141,6 +153,8 @@ jobs:
             -configuration Release \
             -archivePath "$ARCHIVE_PATH" \
             -destination 'generic/platform=macOS' \
+            -clonedSourcePackagesDirPath "$SOURCE_PACKAGES_PATH" \
+            -disableAutomaticPackageResolution \
             ARCHS='arm64 x86_64' \
             ONLY_ACTIVE_ARCH=NO \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
@@ -168,12 +182,22 @@ jobs:
           set -euo pipefail
           app="$EXPORT_PATH/YeelightBar.app"
           codesign --verify --deep --strict --verbose=2 "$app"
+          sparkle="$app/Contents/Frameworks/Sparkle.framework/Versions/B"
+          test -x "$sparkle/Autoupdate"
+          test -d "$sparkle/Updater.app"
+          test -d "$sparkle/XPCServices/Installer.xpc"
+          test -f "$app/Contents/Resources/ThirdPartyNotices.txt"
+          codesign --verify --strict --verbose=2 "$sparkle/Updater.app"
+          codesign --verify --strict --verbose=2 "$sparkle/XPCServices/Installer.xpc"
+          codesign --verify --strict --verbose=2 "$sparkle/XPCServices/Downloader.xpc"
           lipo "$app/Contents/MacOS/YeelightBar" -verify_arch arm64 x86_64
           codesign -d --entitlements - --xml "$app" > "$RUNNER_TEMP/entitlements.plist"
           /usr/libexec/PlistBuddy -c 'Print :com.apple.security.app-sandbox' "$RUNNER_TEMP/entitlements.plist" | grep -qx true
           /usr/libexec/PlistBuddy -c 'Print :com.apple.security.network.client' "$RUNNER_TEMP/entitlements.plist" | grep -qx true
           /usr/libexec/PlistBuddy -c 'Print :com.apple.security.network.server' "$RUNNER_TEMP/entitlements.plist" | grep -qx true
           /usr/libexec/PlistBuddy -c 'Print :com.apple.security.files.user-selected.read-write' "$RUNNER_TEMP/entitlements.plist" | grep -qx true
+          /usr/libexec/PlistBuddy -c 'Print :com.apple.security.temporary-exception.mach-lookup.global-name:0' "$RUNNER_TEMP/entitlements.plist" | grep -qx 'io.github.bekircem.yeelightbar-spks'
+          /usr/libexec/PlistBuddy -c 'Print :com.apple.security.temporary-exception.mach-lookup.global-name:1' "$RUNNER_TEMP/entitlements.plist" | grep -qx 'io.github.bekircem.yeelightbar-spki'
           if /usr/libexec/PlistBuddy -c 'Print :com.apple.security.get-task-allow' "$RUNNER_TEMP/entitlements.plist" >/dev/null 2>&1; then
             echo 'Release artifact contains get-task-allow.' >&2
             exit 1
@@ -368,10 +392,35 @@ jobs:
           printf '%s  %s\n' "$dmg_sha" "$(basename "$dmg")" > "$dmg.sha256"
           echo "sha=$dmg_sha" >> "$GITHUB_OUTPUT"
 
+      - name: Generate and verify signed Sparkle appcast
+        if: steps.version.outputs.prerelease == 'false'
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.invocation.outputs.release_tag }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+          SPARKLE_EDDSA_PRIVATE_KEY_BASE64: ${{ secrets.SPARKLE_EDDSA_PRIVATE_KEY_BASE64 }}
+        run: |
+          set -euo pipefail
+          private_key="$RUNNER_TEMP/sparkle-eddsa-private-key"
+          printf '%s' "$SPARKLE_EDDSA_PRIVATE_KEY_BASE64" | base64 -D > "$private_key"
+          chmod 600 "$private_key"
+          bash Scripts/generate-sparkle-appcast.sh \
+            "$SOURCE_PACKAGES_PATH/artifacts/sparkle/Sparkle/bin" \
+            "$private_key" \
+            "$DIST_PATH/YeelightBar-${RELEASE_VERSION}.dmg" \
+            "$RELEASE_TAG" \
+            "$RELEASE_VERSION"
+
       - name: Attest DMG provenance
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
         with:
           subject-path: ${{ env.DIST_PATH }}/YeelightBar-${{ steps.version.outputs.version }}.dmg
+
+      - name: Attest signed Sparkle appcast provenance
+        if: steps.version.outputs.prerelease == 'false'
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: ${{ env.DIST_PATH }}/appcast.xml
 
       - name: Publish GitHub release
         shell: bash
@@ -389,6 +438,9 @@ jobs:
             "$DIST_PATH/notary-result.json"
             "$DIST_PATH/notary-log.json"
           )
+          if [[ "$PRERELEASE" == false ]]; then
+            assets+=("$DIST_PATH/appcast.xml")
+          fi
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             if [[ $(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft) == true ]]; then
               gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
@@ -402,11 +454,16 @@ jobs:
               fi
 
               published_assets=$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')
-              for required_asset in \
+              required_assets=( \
                 "YeelightBar-${RELEASE_VERSION}.dmg" \
                 "$checksum_asset" \
                 notary-result.json \
-                notary-log.json; do
+                notary-log.json \
+              )
+              if [[ "$PRERELEASE" == false ]]; then
+                required_assets+=(appcast.xml)
+              fi
+              for required_asset in "${required_assets[@]}"; do
                 if ! grep -Fxq "$required_asset" <<< "$published_assets"; then
                   echo "Published release is missing required asset: $required_asset" >&2
                   exit 1
@@ -456,5 +513,6 @@ jobs:
         run: |
           security delete-keychain "$KEYCHAIN_PATH" >/dev/null 2>&1 || true
           rm -f "$RUNNER_TEMP/developer-id.p12" "$RUNNER_TEMP/ExportOptions.plist" "$RUNNER_TEMP/entitlements.plist"
+          rm -f "$RUNNER_TEMP/sparkle-eddsa-private-key"
           rm -rf "$RUNNER_TEMP/private_keys"
           rm -rf "$GITHUB_WORKSPACE/.release"

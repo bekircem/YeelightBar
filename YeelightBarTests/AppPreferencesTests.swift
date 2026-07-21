@@ -3,7 +3,25 @@ import SwiftUI
 @testable import YeelightBar
 
 @MainActor
+private final class TrackingUpdateChecker: UpdateChecking {
+    private(set) var checkCount = 0
+
+    func checkForUpdates() {
+        checkCount += 1
+    }
+}
+
+@MainActor
 final class AppPreferencesTests: XCTestCase {
+    func testCheckForUpdatesDelegatesToInjectedUpdater() {
+        let updateChecker = TrackingUpdateChecker()
+        let state = AppState(store: makeIsolatedStore(), updateChecker: updateChecker)
+
+        state.checkForUpdates()
+
+        XCTAssertEqual(updateChecker.checkCount, 1)
+    }
+
     func testDecodesLegacyPreferencesWithNewDefaults() throws {
         let legacyJSON = """
         {

@@ -130,6 +130,8 @@ set -e
 test "$invalid_id_exit" -eq 64
 
 release_workflow="$root_dir/.github/workflows/release.yml"
+appcast_script="$root_dir/Scripts/generate-sparkle-appcast.sh"
+test -x "$appcast_script"
 if grep -Fq 'prerelease=()' "$release_workflow" || grep -Fq 'prerelease[@]' "$release_workflow"; then
   echo 'Release workflow must not expand an empty prerelease array under Bash set -u.' >&2
   exit 1
@@ -142,6 +144,11 @@ grep -Fq 'gh release edit "$RELEASE_TAG" --draft=false --prerelease=true' "$rele
 grep -Fq 'gh release edit "$RELEASE_TAG" --draft=false --prerelease=false --latest' "$release_workflow"
 grep -Fq 'published_sha=$(gh release download "$RELEASE_TAG" --pattern "$checksum_asset" --output -' "$release_workflow"
 grep -Fq 'Published release checksum does not match the verified DMG; refusing to mutate the release.' "$release_workflow"
+grep -Fq 'SPARKLE_EDDSA_PRIVATE_KEY_BASE64' "$release_workflow"
+grep -Fq 'bash Scripts/generate-sparkle-appcast.sh' "$release_workflow"
+grep -Fq 'assets+=("$DIST_PATH/appcast.xml")' "$release_workflow"
+grep -Fq 'required_assets+=(appcast.xml)' "$release_workflow"
+grep -Fq 'auto_updates true' "$root_dir/packaging/homebrew/yeelightbar.rb.template"
 
 release_create_line=$(grep -nF 'gh release create "$RELEASE_TAG" --verify-tag --generate-notes --draft' "$release_workflow" | tail -n1 | cut -d: -f1)
 release_upload_line=$(grep -nF 'gh release upload "$RELEASE_TAG" "${assets[@]}"' "$release_workflow" | tail -n1 | cut -d: -f1)

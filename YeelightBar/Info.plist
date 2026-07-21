@@ -30,5 +30,19 @@
 	<string>YeelightBar discovers and controls Yeelight bulbs on your local network.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<false/>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/bekircem/YeelightBar/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>MCDTn8pk/+gOTXPi2M6tspcaRripBFgbRoLPSEGQAro=</string>
+	<key>SURequireSignedFeed</key>
+	<true/>
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
 </dict>
 </plist>
