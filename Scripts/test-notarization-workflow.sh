@@ -137,4 +137,10 @@ fi
 grep -Fq 'gh release create "$RELEASE_TAG" "${assets[@]}" --verify-tag --generate-notes --prerelease' "$release_workflow"
 grep -Fq 'gh release create "$RELEASE_TAG" "${assets[@]}" --verify-tag --generate-notes' "$release_workflow"
 
+homebrew_auth_line=$(grep -nF 'gh auth setup-git' "$release_workflow" | cut -d: -f1)
+homebrew_clone_line=$(grep -nF 'gh repo clone bekircem/homebrew-yeelightbar' "$release_workflow" | cut -d: -f1)
+test -n "$homebrew_auth_line"
+test -n "$homebrew_clone_line"
+test "$homebrew_auth_line" -lt "$homebrew_clone_line"
+
 echo 'Notarization workflow shell tests passed.'
