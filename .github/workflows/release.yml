@@ -407,6 +407,7 @@ jobs:
           DMG_SHA: ${{ steps.final.outputs.sha }}
         run: |
           set -euo pipefail
+          gh auth setup-git
           gh repo clone bekircem/homebrew-yeelightbar "$RUNNER_TEMP/homebrew-yeelightbar"
           bash Scripts/update-homebrew-cask.sh "$RELEASE_VERSION" "$DMG_SHA" "$RUNNER_TEMP/homebrew-yeelightbar/Casks/yeelightbar.rb"
           cd "$RUNNER_TEMP/homebrew-yeelightbar"
