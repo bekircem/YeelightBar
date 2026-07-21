@@ -5,6 +5,8 @@ build/
 xcuserdata/
 *.xcarchive
 *.dSYM
+*.xcresult
+.release/
 
 # Distribution and signing
 dist/
@@ -12,7 +14,11 @@ dist/
 *.p12
 *.cer
 AuthKey_*.p8
+*.key
+*.pem
 *.mobileprovision
+*.provisionprofile
+*.keychain-db
 notary-*.json
 
 # macOS

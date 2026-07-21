@@ -364,8 +364,9 @@ jobs:
           mount_point=
           trap - EXIT
 
-          shasum -a 256 "$dmg" > "$dmg.sha256"
-          echo "sha=$(shasum -a 256 "$dmg" | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          dmg_sha=$(shasum -a 256 "$dmg" | awk '{print $1}')
+          printf '%s  %s\n' "$dmg_sha" "$(basename "$dmg")" > "$dmg.sha256"
+          echo "sha=$dmg_sha" >> "$GITHUB_OUTPUT"
 
       - name: Attest DMG provenance
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
@@ -389,12 +390,44 @@ jobs:
             "$DIST_PATH/notary-log.json"
           )
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
+            if [[ $(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft) == true ]]; then
+              gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
+            else
+              checksum_asset="YeelightBar-${RELEASE_VERSION}.dmg.sha256"
+              published_sha=$(gh release download "$RELEASE_TAG" --pattern "$checksum_asset" --output - | awk 'NR == 1 { print $1 }')
+              local_sha=$(awk 'NR == 1 { print $1 }' "$dmg.sha256")
+              if [[ ! "$published_sha" =~ ^[0-9a-fA-F]{64}$ || "$published_sha" != "$local_sha" ]]; then
+                echo "Published release checksum does not match the verified DMG; refusing to mutate the release." >&2
+                exit 1
+              fi
+
+              published_assets=$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name')
+              for required_asset in \
+                "YeelightBar-${RELEASE_VERSION}.dmg" \
+                "$checksum_asset" \
+                notary-result.json \
+                notary-log.json; do
+                if ! grep -Fxq "$required_asset" <<< "$published_assets"; then
+                  echo "Published release is missing required asset: $required_asset" >&2
+                  exit 1
+                fi
+              done
+              echo 'Release is already published; verified existing immutable-ready assets without replacing them.'
+            fi
           else
             if [[ "$PRERELEASE" == true ]]; then
-              gh release create "$RELEASE_TAG" "${assets[@]}" --verify-tag --generate-notes --prerelease
+              gh release create "$RELEASE_TAG" --verify-tag --generate-notes --draft --prerelease
             else
-              gh release create "$RELEASE_TAG" "${assets[@]}" --verify-tag --generate-notes
+              gh release create "$RELEASE_TAG" --verify-tag --generate-notes --draft
+            fi
+            gh release upload "$RELEASE_TAG" "${assets[@]}"
+          fi
+
+          if [[ $(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft) == true ]]; then
+            if [[ "$PRERELEASE" == true ]]; then
+              gh release edit "$RELEASE_TAG" --draft=false --prerelease=true
+            else
+              gh release edit "$RELEASE_TAG" --draft=false --prerelease=false --latest
             fi
           fi
 
