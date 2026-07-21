@@ -391,9 +391,11 @@ jobs:
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
           else
-            prerelease=()
-            if [[ "$PRERELEASE" == true ]]; then prerelease=(--prerelease); fi
-            gh release create "$RELEASE_TAG" "${assets[@]}" --verify-tag --generate-notes "${prerelease[@]}"
+            if [[ "$PRERELEASE" == true ]]; then
+              gh release create "$RELEASE_TAG" "${assets[@]}" --verify-tag --generate-notes --prerelease
+            else
+              gh release create "$RELEASE_TAG" "${assets[@]}" --verify-tag --generate-notes
+            fi
           fi
 
       - name: Update personal Homebrew tap after stable release

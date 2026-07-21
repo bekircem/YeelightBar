@@ -129,4 +129,12 @@ invalid_id_exit=$?
 set -e
 test "$invalid_id_exit" -eq 64
 
+release_workflow="$root_dir/.github/workflows/release.yml"
+if grep -Fq 'prerelease=()' "$release_workflow" || grep -Fq 'prerelease[@]' "$release_workflow"; then
+  echo 'Release workflow must not expand an empty prerelease array under Bash set -u.' >&2
+  exit 1
+fi
+grep -Fq 'gh release create "$RELEASE_TAG" "${assets[@]}" --verify-tag --generate-notes --prerelease' "$release_workflow"
+grep -Fq 'gh release create "$RELEASE_TAG" "${assets[@]}" --verify-tag --generate-notes' "$release_workflow"
+
 echo 'Notarization workflow shell tests passed.'
