@@ -31,6 +31,9 @@
 		A10000000000000000001030 /* KeyboardShortcutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002030 /* KeyboardShortcutTests.swift */; };
 		A10000000000000000001032 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002034 /* Assets.xcassets */; };
 		A10000000000000000001033 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002035 /* PrivacyInfo.xcprivacy */; };
+		A10000000000000000001034 /* UpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002036 /* UpdateController.swift */; };
+		A10000000000000000001035 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A1000000000000000000A002 /* Sparkle */; };
+		A10000000000000000001036 /* ThirdPartyNotices.txt in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002037 /* ThirdPartyNotices.txt */; };
 		A10000000000000000001021 /* DiscoveryResponseParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002021 /* DiscoveryResponseParserTests.swift */; };
 		A10000000000000000001022 /* YeelightCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002022 /* YeelightCommandTests.swift */; };
 		A10000000000000000001023 /* ColorRGBTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002023 /* ColorRGBTests.swift */; };
@@ -86,6 +89,8 @@
 		A10000000000000000002032 /* YeelightBarTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = YeelightBarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000002034 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A10000000000000000002035 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		A10000000000000000002036 /* UpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateController.swift; sourceTree = "<group>"; };
+		A10000000000000000002037 /* ThirdPartyNotices.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = Resources/ThirdPartyNotices.txt; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -93,6 +98,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A10000000000000000001035 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -122,6 +128,7 @@
 				A10000000000000000002034 /* Assets.xcassets */,
 				A10000000000000000002016 /* Info.plist */,
 				A10000000000000000002035 /* PrivacyInfo.xcprivacy */,
+				A10000000000000000002037 /* ThirdPartyNotices.txt */,
 				A10000000000000000002017 /* YeelightBar.entitlements */,
 				A10000000000000000005002 /* Models */,
 				A10000000000000000005003 /* Networking */,
@@ -173,6 +180,7 @@
 				A10000000000000000002011 /* Comparable+Clamp.swift */,
 				A10000000000000000002029 /* GlobalHotKeyManager.swift */,
 				A10000000000000000002019 /* SettingsWindowController.swift */,
+				A10000000000000000002036 /* UpdateController.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -235,6 +243,9 @@
 			dependencies = (
 			);
 			name = YeelightBar;
+			packageProductDependencies = (
+				A1000000000000000000A002 /* Sparkle */,
+			);
 			productName = YeelightBar;
 			productReference = A10000000000000000002031 /* YeelightBar.app */;
 			productType = "com.apple.product-type.application";
@@ -285,6 +296,9 @@
 				Base,
 			);
 			mainGroup = A10000000000000000005000;
+			packageReferences = (
+				A1000000000000000000A001 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			productRefGroup = A10000000000000000005008 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -302,6 +316,7 @@
 			files = (
 				A10000000000000000001032 /* Assets.xcassets in Resources */,
 				A10000000000000000001033 /* PrivacyInfo.xcprivacy in Resources */,
+				A10000000000000000001036 /* ThirdPartyNotices.txt in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -332,6 +347,7 @@
 				A10000000000000000001016 /* ColorPanelCoordinator.swift in Sources */,
 				A10000000000000000001011 /* Comparable+Clamp.swift in Sources */,
 				A10000000000000000001017 /* SettingsWindowController.swift in Sources */,
+				A10000000000000000001034 /* UpdateController.swift in Sources */,
 				A10000000000000000001018 /* LightPreset.swift in Sources */,
 				A10000000000000000001028 /* KeyboardShortcut.swift in Sources */,
 				A10000000000000000001029 /* GlobalHotKeyManager.swift in Sources */,
@@ -359,6 +375,25 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A1000000000000000000A001 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = exactVersion;
+				version = 2.9.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A1000000000000000000A002 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1000000000000000000A001 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin PBXTargetDependency section */
 		A10000000000000000003002 /* PBXTargetDependency */ = {
@@ -489,7 +524,7 @@
 				CODE_SIGN_ENTITLEMENTS = YeelightBar/YeelightBar.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				ENABLE_APP_INTENTS_METADATA_EXTRACTION = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -501,7 +536,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.bekircem.yeelightbar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -518,7 +553,7 @@
 				CODE_SIGN_ENTITLEMENTS = YeelightBar/YeelightBar.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				ENABLE_APP_INTENTS_METADATA_EXTRACTION = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -530,7 +565,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.bekircem.yeelightbar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;

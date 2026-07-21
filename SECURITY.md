@@ -6,7 +6,8 @@ Security fixes are provided for the latest stable release and the active release
 
 | Version | Supported |
 | --- | --- |
-| 1.0.x | Yes |
+| 1.1.x | Yes |
+| 1.0.x | Until the first 1.1 stable release |
 | Earlier development builds | No |
 
 ## Reporting a vulnerability

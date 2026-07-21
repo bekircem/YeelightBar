@@ -314,6 +314,7 @@ final class AppState: ObservableObject {
     private let hotKeyManager: GlobalHotKeyManaging
     private let preferenceSaveScheduler: PreferenceSaveScheduler
     private let launchAtLoginManager: LaunchAtLoginManaging
+    private let updateChecker: UpdateChecking
     private lazy var discoveryService = DiscoveryService(
         onDeviceFound: { [weak self] device, sourceHost in
             self?.handleDiscovered(device, sourceHost: sourceHost)
@@ -368,7 +369,8 @@ final class AppState: ObservableObject {
         store: DeviceStore = DeviceStore(),
         hotKeyManager: GlobalHotKeyManaging? = nil,
         preferenceSaveScheduler: PreferenceSaveScheduler? = nil,
-        launchAtLoginManager: LaunchAtLoginManaging = SystemLaunchAtLoginManager()
+        launchAtLoginManager: LaunchAtLoginManaging = SystemLaunchAtLoginManager(),
+        updateChecker: UpdateChecking = DisabledUpdateChecker()
     ) {
         self.store = store
         self.hotKeyManager = hotKeyManager ?? Self.makeDefaultHotKeyManager()
@@ -376,6 +378,7 @@ final class AppState: ObservableObject {
             store.save(preferences)
         }
         self.launchAtLoginManager = launchAtLoginManager
+        self.updateChecker = updateChecker
         rebuildPresetSnapshot()
 
         colorPanelCoordinator.onColorChange = { [weak self] nsColor in
@@ -1367,10 +1370,7 @@ final class AppState: ObservableObject {
     }
 
     func checkForUpdates() {
-        guard let url = URL(string: "https://github.com/bekircem/YeelightBar/releases") else {
-            return
-        }
-        NSWorkspace.shared.open(url)
+        updateChecker.checkForUpdates()
     }
 
     func refreshSelectedDeviceStateForUser() {

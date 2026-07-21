@@ -5,6 +5,7 @@ Use a fresh copy of this checklist for each release. Replace `<version>` with th
 ## Preparation
 
 - [ ] Confirm signing, notarization, and Homebrew credentials exist only as secrets in the protected GitHub `release` environment.
+- [ ] Confirm the Sparkle EdDSA private key exists only in the protected `release` environment and its public key matches `SUPublicEDKey`.
 - [ ] Update `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`; confirm `v<version>` matches the build metadata.
 - [ ] Review user-facing changes, migration needs, privacy impact, and release notes.
 - [ ] Run tests, Release build, analyzer, strict-concurrency build, plist validation, and secret scan on Apple Silicon and Intel runners.
@@ -23,6 +24,7 @@ Use a fresh copy of this checklist for each release. Replace `<version>` with th
 - [ ] Entitlements contain sandbox, network client/server, and user-selected read-write; Release omits `get-task-allow`.
 - [ ] `hdiutil verify`, DMG signature verification, `stapler validate`, and Gatekeeper assessment pass.
 - [ ] Notarization is `Accepted` and the notary log has no issues.
+- [ ] `appcast.xml` has a valid signed-feed signature, a signed enclosure for the final stapled DMG, the expected version/build/minimum macOS, and the immutable GitHub release URL.
 - [ ] Published SHA-256 matches the DMG and Homebrew cask exactly; the sidecar records only the DMG basename.
 - [ ] GitHub artifact attestation verifies against the downloaded DMG.
 - [ ] dSYM is retained only as an access-controlled workflow artifact.
@@ -34,6 +36,7 @@ Use a fresh copy of this checklist for each release. Replace `<version>` with th
 - [ ] Confirm repository release immutability is enabled before publishing the release.
 - [ ] Mark release candidates as prereleases; mark stable semantic versions as latest.
 - [ ] Update `bekircem/homebrew-yeelightbar` and test fetch, install, upgrade, uninstall, and optional zap.
+- [ ] Confirm the generated Homebrew cask declares `auto_updates true` and test **Check for Updates…** from both DMG and Homebrew installations.
 - [ ] Verify the release page, README links, privacy statement, private security-advisory link, and user-facing release notes.
 - [ ] Confirm the Homebrew checksum is identical to the final stapled DMG checksum.
 
