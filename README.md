@@ -23,6 +23,12 @@
   <a href="#building-from-source">Development</a>
 </p>
 
+<p align="center">
+  <a href="Marketing/YeelightBar-Reddit-Launch-Poster.png">
+    <img src="Marketing/YeelightBar-Reddit-Launch-Poster.png" alt="YeelightBar macOS menu bar controller and Modes &amp; Flows library">
+  </a>
+</p>
+
 YeelightBar controls compatible Wi-Fi lights directly over your local network. There is no YeelightBar account, cloud relay, analytics, advertising, or telemetry. The app lives in the menu bar and stays out of the Dock.
 
 ## Installation
