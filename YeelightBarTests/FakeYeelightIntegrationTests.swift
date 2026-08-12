@@ -286,6 +286,392 @@ final class FakeYeelightIntegrationTests: XCTestCase {
         secondServer.stop()
     }
 
+    @MainActor
+    func testSleepTimerSchedulesCurrentAppearanceOnSelectedDevice() async throws {
+        let server = try FakeYeelightTCPServer()
+        try await server.start()
+        var device = makeDevice(
+            port: server.port,
+            capabilities: ["get_prop", "cron_add", "cron_del"]
+        )
+        device.state = DeviceState(power: .on, online: true)
+        let state = AppState(store: makeIsolatedStore(), hotKeyManager: DisabledGlobalHotKeyManager())
+
+        try state.applyImportedPreferences(preferencesData(for: device))
+        let connected = await waitFor { state.connectionReady }
+        XCTAssertTrue(connected)
+
+        let result = await state.scheduleSleepTimer(minutes: 15, appearance: .current)
+
+        guard case .success = result else {
+            XCTFail("Expected the sleep timer to be scheduled, got \(result)")
+            server.stop()
+            return
+        }
+        let sentTimer = await waitFor {
+            server.recordedCommands().contains {
+                $0.method == "cron_add" && $0.params == ["0", "15"]
+            }
+        }
+        XCTAssertTrue(sentTimer)
+        XCTAssertEqual(state.selectedDeviceDelayOffMinutes, 15)
+
+        server.stop()
+    }
+
+    @MainActor
+    func testSleepTimerAppliesSoftRoseAfterSchedulingDeviceTimer() async throws {
+        let server = try FakeYeelightTCPServer()
+        try await server.start()
+        var device = makeDevice(
+            port: server.port,
+            capabilities: ["get_prop", "cron_add", "cron_del", "set_scene", "set_rgb"]
+        )
+        device.state = DeviceState(power: .on, online: true)
+        let state = AppState(store: makeIsolatedStore(), hotKeyManager: DisabledGlobalHotKeyManager())
+
+        try state.applyImportedPreferences(preferencesData(for: device))
+        let connected = await waitFor { state.connectionReady }
+        XCTAssertTrue(connected)
+
+        let result = await state.scheduleSleepTimer(minutes: 15, appearance: .softRose)
+
+        XCTAssertEqual(result, .success)
+        let commands = server.recordedCommands()
+        let timerIndex = try XCTUnwrap(commands.firstIndex { $0.method == "cron_add" })
+        let appearanceIndex = try XCTUnwrap(commands.firstIndex { $0.method == "set_scene" })
+        XCTAssertLessThan(timerIndex, appearanceIndex)
+        XCTAssertEqual(commands[appearanceIndex].params, ["color", "16740241", "5"])
+        XCTAssertEqual(state.selectedDeviceDelayOffMinutes, 15)
+
+        server.stop()
+    }
+
+    @MainActor
+    func testSleepTimerKeepsTimerWhenAppearanceFails() async throws {
+        let server = try FakeYeelightTCPServer(responseMode: .failMethod("set_scene"))
+        try await server.start()
+        var device = makeDevice(
+            port: server.port,
+            capabilities: ["get_prop", "cron_add", "cron_del", "set_scene", "set_rgb"]
+        )
+        device.state = DeviceState(power: .on, online: true)
+        let state = AppState(store: makeIsolatedStore(), hotKeyManager: DisabledGlobalHotKeyManager())
+
+        try state.applyImportedPreferences(preferencesData(for: device))
+        let connected = await waitFor { state.connectionReady }
+        XCTAssertTrue(connected)
+
+        let result = await state.scheduleSleepTimer(minutes: 30, appearance: .softRose)
+
+        guard case .timerStartedAppearanceFailed = result else {
+            XCTFail("Expected a partial success when the appearance fails, got \(result)")
+            server.stop()
+            return
+        }
+        XCTAssertEqual(state.selectedDeviceDelayOffMinutes, 30)
+        XCTAssertTrue(server.recordedCommands().contains { $0.method == "cron_add" })
+        XCTAssertTrue(server.recordedCommands().contains { $0.method == "set_scene" })
+
+        server.stop()
+    }
+
+    @MainActor
+    func testSleepTimerRejectsColorAppearanceWithoutColorCapability() async throws {
+        let server = try FakeYeelightTCPServer()
+        try await server.start()
+        var device = makeDevice(
+            port: server.port,
+            capabilities: ["get_prop", "cron_add", "cron_del", "set_scene"]
+        )
+        device.state = DeviceState(power: .on, online: true)
+        let state = AppState(store: makeIsolatedStore(), hotKeyManager: DisabledGlobalHotKeyManager())
+
+        try state.applyImportedPreferences(preferencesData(for: device))
+        let connected = await waitFor { state.connectionReady }
+        XCTAssertTrue(connected)
+
+        let result = await state.scheduleSleepTimer(minutes: 15, appearance: .softRose)
+
+        guard case .failure = result else {
+            XCTFail("Expected an unsupported appearance to fail, got \(result)")
+            server.stop()
+            return
+        }
+        XCTAssertFalse(server.recordedCommands().contains { $0.method == "cron_add" })
+        XCTAssertTrue(state.compatibleSleepTimerPresets.isEmpty)
+
+        server.stop()
+    }
+
+    @MainActor
+    func testSleepTimerDoesNotConfirmDifferentReportedDuration() async throws {
+        let server = try FakeYeelightTCPServer(responseMode: .failMethod("cron_add"))
+        try await server.start()
+        var device = makeDevice(
+            port: server.port,
+            capabilities: ["get_prop", "cron_add", "cron_del"]
+        )
+        device.state = DeviceState(power: .on, online: true)
+        let state = AppState(store: makeIsolatedStore(), hotKeyManager: DisabledGlobalHotKeyManager())
+
+        try state.applyImportedPreferences(preferencesData(for: device))
+        let connected = await waitFor { state.connectionReady }
+        XCTAssertTrue(connected)
+        let initialRefreshFinished = await waitFor {
+            server.recordedCommands().contains { $0.method == "get_prop" }
+        }
+        XCTAssertTrue(initialRefreshFinished)
+        server.setDelayOffMinutes(5)
+
+        let result = await state.scheduleSleepTimer(minutes: 30, appearance: .current)
+
+        guard case .failure = result else {
+            XCTFail("Expected a different reported timer duration to be rejected, got \(result)")
+            server.stop()
+            return
+        }
+        XCTAssertEqual(state.selectedDeviceDelayOffMinutes, 5)
+
+        server.stop()
+    }
+
+    @MainActor
+    func testSleepTimerReportsWhenReplacementAndRestoreBothFail() async throws {
+        let server = try FakeYeelightTCPServer(responseMode: .failMethod("cron_add"))
+        server.setDelayOffMinutes(5)
+        try await server.start()
+        var device = makeDevice(
+            port: server.port,
+            capabilities: ["get_prop", "cron_add", "cron_del"]
+        )
+        device.state = DeviceState(power: .on, delayOffMinutes: 5, online: true)
+        let state = AppState(store: makeIsolatedStore(), hotKeyManager: DisabledGlobalHotKeyManager())
+
+        try state.applyImportedPreferences(preferencesData(for: device))
+        let connected = await waitFor { state.connectionReady }
+        XCTAssertTrue(connected)
+
+        let result = await state.scheduleSleepTimer(minutes: 30, appearance: .current)
+
+        guard case .failure(let message) = result else {
+            XCTFail("Expected replacement and restoration failure, got \(result)")
+            server.stop()
+            return
+        }
+        XCTAssertTrue(message.contains("previous timer is no longer active"))
+        XCTAssertEqual(state.selectedDeviceDelayOffMinutes, 0)
+
+        server.stop()
+    }
+
+    @MainActor
+    func testNewSleepTimerRequestSupersedesOlderSameSessionResult() async throws {
+        let server = try FakeYeelightTCPServer(responseMode: .delayed(0.35))
+        try await server.start()
+        var device = makeDevice(
+            port: server.port,
+            capabilities: ["get_prop", "cron_add", "cron_del"]
+        )
+        device.state = DeviceState(power: .on, online: true)
+        let state = AppState(store: makeIsolatedStore(), hotKeyManager: DisabledGlobalHotKeyManager())
+
+        try state.applyImportedPreferences(preferencesData(for: device))
+        let connected = await waitFor { state.connectionReady }
+        XCTAssertTrue(connected)
+
+        let firstRequest = Task {
+            await state.scheduleSleepTimer(minutes: 15, appearance: .current)
+        }
+        let firstWasSent = await waitFor {
+            server.recordedCommands().contains {
+                $0.method == "cron_add" && $0.params == ["0", "15"]
+            }
+        }
+        XCTAssertTrue(firstWasSent)
+
+        let secondResult = await state.scheduleSleepTimer(minutes: 30, appearance: .current)
+        _ = await firstRequest.value
+
+        XCTAssertEqual(secondResult, .success)
+        XCTAssertEqual(state.selectedDeviceDelayOffMinutes, 30)
+
+        server.stop()
+    }
+
+    @MainActor
+    func testSleepTimerCancelRemovesDeviceTimer() async throws {
+        let server = try FakeYeelightTCPServer()
+        try await server.start()
+        var device = makeDevice(
+            port: server.port,
+            capabilities: ["get_prop", "cron_add", "cron_del"]
+        )
+        device.state = DeviceState(power: .on, online: true)
+        let state = AppState(store: makeIsolatedStore(), hotKeyManager: DisabledGlobalHotKeyManager())
+
+        try state.applyImportedPreferences(preferencesData(for: device))
+        let connected = await waitFor { state.connectionReady }
+        XCTAssertTrue(connected)
+        let scheduleResult = await state.scheduleSleepTimer(minutes: 30, appearance: .current)
+        guard case .success = scheduleResult else {
+            XCTFail("Expected the sleep timer to be scheduled before cancellation")
+            server.stop()
+            return
+        }
+
+        let didCancel = await state.cancelSleepTimer()
+        XCTAssertTrue(didCancel)
+        let sentCancellation = await waitFor {
+            server.recordedCommands().contains {
+                $0.method == "cron_del" && $0.params == ["0"]
+            }
+        }
+        XCTAssertTrue(sentCancellation)
+        XCTAssertEqual(state.selectedDeviceDelayOffMinutes, 0)
+
+        server.stop()
+    }
+
+    @MainActor
+    func testSleepTimerDoesNotSendCommandsToUnsupportedDevice() async throws {
+        let server = try FakeYeelightTCPServer()
+        try await server.start()
+        var device = makeDevice(port: server.port, capabilities: ["cron_add", "cron_del"])
+        device.state = DeviceState(power: .on, online: true)
+        let state = AppState(store: makeIsolatedStore(), hotKeyManager: DisabledGlobalHotKeyManager())
+
+        try state.applyImportedPreferences(preferencesData(for: device))
+        let connected = await waitFor { state.connectionReady }
+        XCTAssertTrue(connected)
+
+        let result = await state.scheduleSleepTimer(minutes: 15, appearance: .current)
+
+        guard case .failure = result else {
+            XCTFail("Expected unsupported timer scheduling to fail, got \(result)")
+            server.stop()
+            return
+        }
+        XCTAssertFalse(server.recordedCommands().contains {
+            $0.method == "cron_add" || $0.method == "cron_del"
+        })
+
+        server.stop()
+    }
+
+    @MainActor
+    func testSleepTimerRejectsOfflineStateBeforeSending() async {
+        let state = AppState(store: makeIsolatedStore(), hotKeyManager: DisabledGlobalHotKeyManager())
+
+        let result = await state.scheduleSleepTimer(minutes: 15, appearance: .current)
+
+        guard case .failure = result else {
+            XCTFail("Expected offline timer scheduling to fail, got \(result)")
+            return
+        }
+        XCTAssertFalse(state.connectionReady)
+        XCTAssertNil(state.selectedDeviceID)
+    }
+
+    @MainActor
+    func testSleepTimerReturnsVerificationPendingWhenAcceptedCommandCannotBeConfirmed() async throws {
+        let server = try FakeYeelightTCPServer(responseMode: .noResponse)
+        try await server.start()
+        var device = makeDevice(
+            port: server.port,
+            capabilities: ["get_prop", "cron_add", "cron_del"]
+        )
+        device.state = DeviceState(power: .on, online: true)
+        let preferences = AppPreferences(
+            savedDevices: [device],
+            selectedDeviceID: device.id,
+            transitionDuration: 30,
+            discoveryRetryInterval: 15,
+            launchAtLogin: false,
+            commandTimeout: 1,
+            brightnessDebounceMilliseconds: 30,
+            colorDebounceMilliseconds: 30
+        )
+        let state = AppState(store: makeIsolatedStore(), hotKeyManager: DisabledGlobalHotKeyManager())
+
+        try state.applyImportedPreferences(JSONEncoder().encode(preferences))
+        let connected = await waitFor { state.connectionReady }
+        XCTAssertTrue(connected)
+
+        let result = await state.scheduleSleepTimer(minutes: 15, appearance: .current)
+
+        guard case .verificationPending = result else {
+            XCTFail("Expected an unconfirmed timer result, got \(result)")
+            server.stop()
+            return
+        }
+        XCTAssertTrue(server.recordedCommands().contains {
+            $0.method == "cron_add" && $0.params == ["0", "15"]
+        })
+
+        server.stop()
+    }
+
+    @MainActor
+    func testSwitchingDevicesDoesNotApplyDelayedSleepTimerResultToNewDevice() async throws {
+        let firstServer = try FakeYeelightTCPServer(responseMode: .delayed(0.4))
+        let secondServer = try FakeYeelightTCPServer()
+        try await firstServer.start()
+        try await secondServer.start()
+
+        var firstDevice = makeDevice(
+            port: firstServer.port,
+            capabilities: ["get_prop", "cron_add", "cron_del"]
+        )
+        firstDevice.id = "first-sleep-device"
+        firstDevice.state = DeviceState(power: .on, online: true)
+        var secondDevice = makeDevice(
+            port: secondServer.port,
+            capabilities: ["get_prop", "cron_add", "cron_del"]
+        )
+        secondDevice.id = "second-sleep-device"
+        secondDevice.state = DeviceState(power: .on, online: true)
+
+        let preferences = AppPreferences(
+            savedDevices: [firstDevice, secondDevice],
+            selectedDeviceID: firstDevice.id,
+            transitionDuration: 30,
+            discoveryRetryInterval: 15,
+            launchAtLogin: false,
+            brightnessDebounceMilliseconds: 30,
+            colorDebounceMilliseconds: 30
+        )
+        let state = AppState(store: makeIsolatedStore(), hotKeyManager: DisabledGlobalHotKeyManager())
+        try state.applyImportedPreferences(JSONEncoder().encode(preferences))
+        let firstConnected = await waitFor { state.connectionReady }
+        XCTAssertTrue(firstConnected)
+
+        let scheduleTask = Task {
+            await state.scheduleSleepTimer(minutes: 15, appearance: .current)
+        }
+        let sentTimer = await waitFor {
+            firstServer.recordedCommands().contains { $0.method == "cron_add" }
+        }
+        XCTAssertTrue(sentTimer)
+
+        state.selectDevice(id: secondDevice.id)
+        let secondConnected = await waitFor {
+            state.connectionReady && state.selectedDeviceID == secondDevice.id
+        }
+        XCTAssertTrue(secondConnected)
+        _ = await scheduleTask.value
+        try await Task.sleep(nanoseconds: 500_000_000)
+
+        XCTAssertEqual(state.selectedDeviceID, secondDevice.id)
+        XCTAssertEqual(state.selectedDeviceDelayOffMinutes, 0)
+        XCTAssertFalse(secondServer.recordedCommands().contains {
+            $0.method == "cron_add" || $0.method == "cron_del"
+        })
+
+        firstServer.stop()
+        secondServer.stop()
+    }
+
     private func makeDevice(port: UInt16, capabilities: Set<String>) -> YeelightDevice {
         YeelightDevice(
             id: "fake-app-state",
@@ -347,6 +733,7 @@ private enum FakeResponseMode: Equatable {
     case gracefulEOF
     case oversizedFrame
     case malformedFrame
+    case failMethod(String)
 }
 
 private final class FakeYeelightTCPServer: @unchecked Sendable {
@@ -355,6 +742,7 @@ private final class FakeYeelightTCPServer: @unchecked Sendable {
     private let responseMode: FakeResponseMode
     private var connection: NWConnection?
     private var commands: [RecordedCommand] = []
+    private var delayOffMinutes = 0
 
     var port: UInt16 {
         listener.port?.rawValue ?? 0
@@ -399,6 +787,12 @@ private final class FakeYeelightTCPServer: @unchecked Sendable {
         }
     }
 
+    func setDelayOffMinutes(_ minutes: Int) {
+        queue.sync {
+            delayOffMinutes = minutes.clamped(to: 0...60)
+        }
+    }
+
     private func receive(on connection: NWConnection) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { [weak self, weak connection] data, _, isComplete, error in
             guard let self, let connection else {
@@ -417,9 +811,25 @@ private final class FakeYeelightTCPServer: @unchecked Sendable {
                 let params = (dictionary["params"] as? [Any] ?? []).map { String(describing: $0) }
                 self.commands.append(RecordedCommand(method: method, params: params))
 
+                let commandShouldFail: Bool
+                if case .failMethod(let failingMethod) = responseMode {
+                    commandShouldFail = failingMethod == method
+                } else {
+                    commandShouldFail = false
+                }
+
+                if !commandShouldFail, method == "cron_add", params.count >= 2 {
+                    self.delayOffMinutes = Int(params[1]) ?? 0
+                } else if !commandShouldFail, method == "cron_del" {
+                    self.delayOffMinutes = 0
+                }
+
                 let result: [String]
                 if method == "get_prop" {
-                    result = ["on", "50", "4000", "16777215", "0", "0", "1", "0", "", "0"]
+                    result = [
+                        "on", "50", "4000", "16777215", "0", "0", "1", "0", "",
+                        String(self.delayOffMinutes)
+                    ]
                 } else {
                     result = ["ok"]
                 }
@@ -435,7 +845,15 @@ private final class FakeYeelightTCPServer: @unchecked Sendable {
                         return
                     }
 
-                    let payload: [String: Any] = ["id": id, "result": result]
+                    let payload: [String: Any]
+                    if commandShouldFail {
+                        payload = [
+                            "id": id,
+                            "error": ["code": -1, "message": "Simulated command failure"]
+                        ]
+                    } else {
+                        payload = ["id": id, "result": result]
+                    }
                     if var responseData = try? JSONSerialization.data(withJSONObject: payload, options: []) {
                         responseData.append(contentsOf: [0x0D, 0x0A])
                         let finalResponseData = responseData
@@ -468,6 +886,8 @@ private final class FakeYeelightTCPServer: @unchecked Sendable {
                             )
                         case .malformedFrame:
                             connection.send(content: Data("{not-json}\r\n".utf8), completion: .contentProcessed { _ in })
+                        case .failMethod:
+                            sendResponse()
                         case .noResponse:
                             break
                         }

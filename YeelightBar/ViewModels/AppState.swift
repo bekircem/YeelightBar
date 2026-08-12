@@ -341,6 +341,9 @@ final class AppState: ObservableObject {
     private var reconnectTask: Task<Void, Never>?
     private var presetTask: Task<Void, Never>?
     private var refreshTask: Task<Void, Never>?
+    private var sleepTimerTask: Task<SleepTimerOperationResult, Never>?
+    private var sleepTimerOperationID: UUID?
+    private var sleepTimerRefreshTask: Task<Void, Never>?
     private var discoveryCandidateRegistry = DiscoveryCandidateRegistry()
     private var colorRevision = 0
     private var pendingColorRGB: Int?
@@ -352,6 +355,7 @@ final class AppState: ObservableObject {
     private var isRefreshingState = false
     private var started = false
     private lazy var settingsWindowController = SettingsWindowController(state: self)
+    private lazy var sleepTimerWindowController = SleepTimerWindowController(state: self)
 
     private var isUserColorEditingActive: Bool {
         isColorEditingActive || isColorPanelActive
@@ -426,6 +430,30 @@ final class AppState: ObservableObject {
 
     var selectedDeviceSupportsScenes: Bool {
         selectedDevice?.supports(.setScene) == true
+    }
+
+    var selectedDeviceSupportsSleepTimer: Bool {
+        selectedDevice?.supports(.getProp) == true
+            && selectedDevice?.supports(.addPowerOffTimer) == true
+            && selectedDevice?.supports(.deletePowerOffTimer) == true
+    }
+
+    var selectedDeviceDelayOffMinutes: Int {
+        selectedDevice?.state.delayOffMinutes ?? 0
+    }
+
+    var selectedDeviceSupportsSleepTimerWarmDim: Bool {
+        supportsBuiltInSleepTimerAppearance(.warmDim)
+    }
+
+    var selectedDeviceSupportsSleepTimerSoftRose: Bool {
+        supportsBuiltInSleepTimerAppearance(.softRose)
+    }
+
+    var compatibleSleepTimerPresets: [LightPreset] {
+        availablePresets.filter { preset in
+            preset.kind != .flow && canApplySleepTimerPreset(preset)
+        }
     }
 
     var selectedDeviceSupportsFlow: Bool {
@@ -1369,6 +1397,13 @@ final class AppState: ObservableObject {
         settingsWindowController.show()
     }
 
+    func showSleepTimer() {
+        guard let selectedDeviceID else {
+            return
+        }
+        sleepTimerWindowController.show(deviceID: selectedDeviceID)
+    }
+
     func checkForUpdates() {
         updateChecker.checkForUpdates()
     }
@@ -1376,6 +1411,59 @@ final class AppState: ObservableObject {
     func refreshSelectedDeviceStateForUser() {
         recordDiagnostic("Manual state refresh requested")
         refreshSelectedDeviceState()
+    }
+
+    func scheduleSleepTimer(
+        minutes rawMinutes: Int,
+        appearance: SleepTimerAppearance
+    ) async -> SleepTimerOperationResult {
+        guard let minutes = SleepTimerMinutes(rawMinutes) else {
+            return .failure("Choose a duration between 1 and 60 minutes.")
+        }
+
+        sleepTimerTask?.cancel()
+        let operationID = UUID()
+        sleepTimerOperationID = operationID
+        let task = Task { [weak self] in
+            guard let self else {
+                return SleepTimerOperationResult.failure("YeelightBar is no longer available.")
+            }
+            return await self.performScheduleSleepTimer(
+                minutes: minutes,
+                appearance: appearance,
+                operationID: operationID
+            )
+        }
+        sleepTimerTask = task
+        let result = await task.value
+        if sleepTimerOperationID == operationID {
+            sleepTimerTask = nil
+            sleepTimerOperationID = nil
+        }
+        return result
+    }
+
+    func cancelSleepTimer() async -> Bool {
+        sleepTimerTask?.cancel()
+        let operationID = UUID()
+        sleepTimerOperationID = operationID
+        let task = Task { [weak self] in
+            guard let self else {
+                return SleepTimerOperationResult.failure("YeelightBar is no longer available.")
+            }
+            return await self.performCancelSleepTimer(operationID: operationID)
+        }
+        sleepTimerTask = task
+        let result = await task.value
+        if sleepTimerOperationID == operationID {
+            sleepTimerTask = nil
+            sleepTimerOperationID = nil
+        }
+
+        if case .success = result {
+            return true
+        }
+        return false
     }
 
     func testSelectedDeviceConnection() {
@@ -1824,6 +1912,381 @@ final class AppState: ObservableObject {
         }
     }
 
+    private func performScheduleSleepTimer(
+        minutes: SleepTimerMinutes,
+        appearance: SleepTimerAppearance,
+        operationID: UUID
+    ) async -> SleepTimerOperationResult {
+        guard !Task.isCancelled, sleepTimerOperationID == operationID else {
+            return .failure("The sleep timer operation was cancelled.")
+        }
+
+        guard let session = connectionSession,
+              isConnectionReady,
+              let device = selectedDevice,
+              session.deviceID == device.id else {
+            return .failure("Connect to a bulb before starting a sleep timer.")
+        }
+
+        guard device.supports(.getProp),
+              device.supports(.addPowerOffTimer),
+              device.supports(.deletePowerOffTimer) else {
+            return .failure("This bulb does not advertise sleep timer support.")
+        }
+
+        guard device.state.power == .on else {
+            return .failure("Turn on the bulb before starting a sleep timer.")
+        }
+
+        let appearancePreset: LightPreset?
+        switch appearance {
+        case .current:
+            appearancePreset = nil
+        case .warmDim, .softRose:
+            guard let look = appearance.builtInLook else {
+                return .failure("The selected bedtime appearance is unavailable.")
+            }
+            appearancePreset = look.makePreset(id: "sleep-timer-appearance", title: "Bedtime Appearance")
+        case .preset(let id):
+            guard let preset = availablePresets.first(where: { $0.id == id && $0.kind != .flow }) else {
+                return .failure("The selected bedtime mode is no longer available.")
+            }
+            appearancePreset = preset
+        }
+
+        if let appearancePreset, !canApplySleepTimerPreset(appearancePreset, to: device) {
+            return .failure("This bulb cannot apply the selected bedtime appearance.")
+        }
+
+        let previousMinutes = device.state.delayOffMinutes
+        if previousMinutes > 0 {
+            let deleteMessage = await sendCommand(in: session) { commandID, _ in
+                .deletePowerOffTimer(id: commandID)
+            }
+            guard sleepTimerOperationIsActive(operationID, session: session) else {
+                return .failure("The sleep timer operation was replaced by a newer request.")
+            }
+
+            if deleteMessage?.isOKResult == true {
+                commitSelectedDelayOffMinutes(0, session: session, operationID: operationID)
+            } else {
+                let verified = await refreshSelectedDeviceState(in: session)
+                guard sleepTimerOperationIsActive(operationID, session: session) else {
+                    return .failure("The selected bulb changed before its timer could be replaced.")
+                }
+                guard verified else {
+                    return .verificationPending("YeelightBar could not verify whether the previous timer was removed. Reconnect and check again.")
+                }
+                guard selectedDeviceDelayOffMinutes == 0 else {
+                    return .failure("The existing sleep timer could not be replaced.")
+                }
+            }
+        }
+
+        let addMessage = await sendCommand(in: session) { commandID, _ in
+            .addPowerOffTimer(id: commandID, minutes: minutes)
+        }
+        guard sleepTimerOperationIsActive(operationID, session: session) else {
+            return .failure("The sleep timer operation was replaced by a newer request.")
+        }
+
+        var timerConfirmed = addMessage?.isOKResult == true
+        if timerConfirmed {
+            commitSelectedDelayOffMinutes(minutes.rawValue, session: session, operationID: operationID)
+        } else {
+            let verified = await refreshSelectedDeviceState(in: session)
+            guard sleepTimerOperationIsActive(operationID, session: session) else {
+                return .verificationPending("The bulb changed while YeelightBar was verifying the timer. The previous bulb may still have an active timer.")
+            }
+            if verified, delayOffMatchesScheduledDuration(
+                reported: selectedDeviceDelayOffMinutes,
+                scheduled: minutes.rawValue
+            ) {
+                timerConfirmed = true
+            } else if !verified {
+                return .verificationPending("The bulb may have accepted the timer, but YeelightBar could not verify it. Reconnect and check again.")
+            }
+        }
+
+        guard timerConfirmed else {
+            if previousMinutes > 0, let previousTimer = SleepTimerMinutes(previousMinutes) {
+                let restoreMessage = await sendCommand(in: session) { commandID, _ in
+                    .addPowerOffTimer(id: commandID, minutes: previousTimer)
+                }
+                guard sleepTimerOperationIsActive(operationID, session: session) else {
+                    return .verificationPending("The timer request changed while YeelightBar was restoring the previous timer. Reconnect and verify the bulb.")
+                }
+                if restoreMessage?.isOKResult == true {
+                    commitSelectedDelayOffMinutes(
+                        previousMinutes,
+                        session: session,
+                        operationID: operationID
+                    )
+                    return .failure("The new sleep timer could not be started. The previous timer is still active.")
+                }
+
+                let restoreVerified = await refreshSelectedDeviceState(in: session)
+                guard sleepTimerOperationIsActive(operationID, session: session) else {
+                    return .verificationPending("YeelightBar could not verify whether the previous timer was restored. Reconnect and check again.")
+                }
+                guard restoreVerified else {
+                    return .verificationPending("The new timer failed, and YeelightBar could not verify whether the previous timer was restored. Reconnect and check again.")
+                }
+                if delayOffMatchesScheduledDuration(
+                    reported: selectedDeviceDelayOffMinutes,
+                    scheduled: previousMinutes
+                ) {
+                    return .failure("The new sleep timer could not be started. The previous timer is still active.")
+                }
+
+                return .failure("The new sleep timer could not be started, and the previous timer is no longer active. Start a new timer to ensure the light turns off.")
+            }
+            return .failure("The sleep timer could not be started.")
+        }
+
+        guard sleepTimerOperationIsActive(operationID, session: session) else {
+            return .timerStartedAppearanceFailed("The timer was started, but the bulb changed before its bedtime appearance could be applied.")
+        }
+
+        if let appearancePreset {
+            let appearanceApplied = await applySleepTimerPreset(
+                appearancePreset,
+                in: session,
+                to: device,
+                operationID: operationID
+            )
+            guard sleepTimerOperationIsActive(operationID, session: session) else {
+                return .failure("The sleep timer operation was replaced by a newer request.")
+            }
+            if !appearanceApplied {
+                _ = await refreshSelectedDeviceState(in: session)
+                guard sleepTimerOperationIsActive(operationID, session: session) else {
+                    return .failure("The sleep timer operation was replaced by a newer request.")
+                }
+                return .timerStartedAppearanceFailed("The timer was started, but the bedtime appearance could not be applied.")
+            }
+        }
+
+        _ = await refreshSelectedDeviceState(in: session)
+        guard sleepTimerOperationIsActive(operationID, session: session) else {
+            return .failure("The sleep timer operation was replaced by a newer request.")
+        }
+        recordDiagnostic("Sleep timer started")
+        return .success
+    }
+
+    private func performCancelSleepTimer(operationID: UUID) async -> SleepTimerOperationResult {
+        guard !Task.isCancelled, sleepTimerOperationID == operationID else {
+            return .failure("The sleep timer operation was cancelled.")
+        }
+
+        guard let session = connectionSession,
+              isConnectionReady,
+              let device = selectedDevice,
+              session.deviceID == device.id else {
+            return .failure("Connect to the bulb before cancelling its sleep timer.")
+        }
+
+        guard device.supports(.getProp), device.supports(.deletePowerOffTimer) else {
+            return .failure("This bulb does not advertise sleep timer cancellation support.")
+        }
+
+        guard device.state.delayOffMinutes > 0 else {
+            return .success
+        }
+
+        let message = await sendCommand(in: session) { commandID, _ in
+            .deletePowerOffTimer(id: commandID)
+        }
+        guard sleepTimerOperationIsActive(operationID, session: session) else {
+            return .failure("The sleep timer operation was replaced by a newer request.")
+        }
+        if message?.isOKResult == true {
+            commitSelectedDelayOffMinutes(0, session: session, operationID: operationID)
+            _ = await refreshSelectedDeviceState(in: session)
+            guard sleepTimerOperationIsActive(operationID, session: session) else {
+                return .failure("The sleep timer operation was replaced by a newer request.")
+            }
+            recordDiagnostic("Sleep timer cancelled")
+            return .success
+        }
+
+        let verified = await refreshSelectedDeviceState(in: session)
+        guard sleepTimerOperationIsActive(operationID, session: session) else {
+            return .failure("The selected bulb changed before cancellation could be verified.")
+        }
+        if verified, selectedDeviceDelayOffMinutes == 0 {
+            recordDiagnostic("Sleep timer cancellation verified")
+            return .success
+        }
+        return .failure("The sleep timer could not be cancelled.")
+    }
+
+    private func canApplySleepTimerPreset(_ preset: LightPreset) -> Bool {
+        guard let selectedDevice else {
+            return false
+        }
+        return canApplySleepTimerPreset(preset, to: selectedDevice)
+    }
+
+    private func supportsBuiltInSleepTimerAppearance(_ appearance: SleepTimerAppearance) -> Bool {
+        guard let selectedDevice,
+              let look = appearance.builtInLook else {
+            return false
+        }
+        let preset = look.makePreset(id: "sleep-timer-capability-check", title: "Bedtime Appearance")
+        return canApplySleepTimerPreset(preset, to: selectedDevice)
+    }
+
+    private func canApplySleepTimerPreset(_ preset: LightPreset, to device: YeelightDevice) -> Bool {
+        let canSetBrightness = device.supports(.setScene) || device.supports(.setBrightness)
+
+        switch preset.kind {
+        case .color:
+            return canSetBrightness && (device.supports(.setRGB) || device.supports(.setHSV))
+        case .colorTemperature:
+            return canSetBrightness && device.supports(.setColorTemperature)
+        case .hsv:
+            return canSetBrightness && (device.supports(.setHSV) || device.supports(.setRGB))
+        case .flow:
+            return false
+        }
+    }
+
+    private func applySleepTimerPreset(
+        _ preset: LightPreset,
+        in session: ConnectionSession,
+        to device: YeelightDevice,
+        operationID: UUID
+    ) async -> Bool {
+        if device.supports(.setScene) {
+            let message = await sendCommand(in: session) { commandID, _ in
+                switch preset.kind {
+                case .color:
+                    return .setSceneColor(id: commandID, rgb: preset.rgb, brightness: preset.brightness)
+                case .colorTemperature:
+                    return .setSceneColorTemperature(
+                        id: commandID,
+                        temperature: preset.colorTemperature,
+                        brightness: preset.brightness
+                    )
+                case .hsv:
+                    return .setSceneHSV(
+                        id: commandID,
+                        hue: preset.hue,
+                        saturation: preset.saturation,
+                        brightness: preset.brightness
+                    )
+                case .flow:
+                    return .setSceneColor(id: commandID, rgb: preset.rgb, brightness: preset.brightness)
+                }
+            }
+            guard message?.isOKResult == true,
+                  sleepTimerOperationIsActive(operationID, session: session) else {
+                return false
+            }
+            commitAppliedPreset(preset)
+            return true
+        }
+
+        let appearanceMessage: YeelightIncomingMessage?
+        switch preset.kind {
+        case .color:
+            if device.supports(.setRGB) {
+                appearanceMessage = await sendCommand(in: session) { commandID, duration in
+                    .setRGB(id: commandID, rgb: preset.rgb, duration: duration)
+                }
+            } else if device.supports(.setHSV) {
+                let hsv = Color(yeelightRGB: preset.rgb).yeelightHSVValue
+                appearanceMessage = await sendCommand(in: session) { commandID, duration in
+                    .setHSV(
+                        id: commandID,
+                        hue: Int(hsv.hue.rounded()),
+                        saturation: Int((hsv.saturation * 100).rounded()),
+                        duration: duration
+                    )
+                }
+            } else {
+                return false
+            }
+        case .colorTemperature:
+            guard device.supports(.setColorTemperature) else {
+                return false
+            }
+            appearanceMessage = await sendCommand(in: session) { commandID, duration in
+                .setColorTemperature(id: commandID, temperature: preset.colorTemperature, duration: duration)
+            }
+        case .hsv:
+            if device.supports(.setHSV) {
+                appearanceMessage = await sendCommand(in: session) { commandID, duration in
+                    .setHSV(id: commandID, hue: preset.hue, saturation: preset.saturation, duration: duration)
+                }
+            } else if device.supports(.setRGB) {
+                let rgb = Color(yeelightHSV: YeelightHSV(
+                    hue: Double(preset.hue),
+                    saturation: Double(preset.saturation) / 100,
+                    value: 1
+                )).yeelightRGBValue
+                appearanceMessage = await sendCommand(in: session) { commandID, duration in
+                    .setRGB(id: commandID, rgb: rgb, duration: duration)
+                }
+            } else {
+                return false
+            }
+        case .flow:
+            return false
+        }
+
+        guard appearanceMessage?.isOKResult == true,
+              sleepTimerOperationIsActive(operationID, session: session) else {
+            return false
+        }
+
+        let brightnessMessage = await sendCommand(in: session) { commandID, duration in
+            .setBrightness(id: commandID, brightness: preset.brightness, duration: duration)
+        }
+        guard brightnessMessage?.isOKResult == true,
+              sleepTimerOperationIsActive(operationID, session: session) else {
+            return false
+        }
+
+        commitAppliedPreset(preset)
+        return true
+    }
+
+    private func commitSelectedDelayOffMinutes(
+        _ minutes: Int,
+        session: ConnectionSession,
+        operationID: UUID
+    ) {
+        guard sleepTimerOperationIsActive(operationID, session: session),
+              let index = devices.firstIndex(where: { $0.id == session.deviceID }) else {
+            return
+        }
+        devices[index].state.delayOffMinutes = minutes.clamped(to: 0...60)
+        devices[index].state.online = true
+        preferences.savedDevices = devices
+        persistDeferred()
+        scheduleSleepTimerStateRefreshIfNeeded()
+    }
+
+    private func refreshSelectedDeviceState(in session: ConnectionSession) async -> Bool {
+        guard sessionIsActive(id: session.id, deviceID: session.deviceID) else {
+            return false
+        }
+        let message = await sendCommand(in: session) { commandID, _ in
+            .getProperties(id: commandID, Self.statePropertyKeys)
+        }
+        guard sessionIsActive(id: session.id, deviceID: session.deviceID),
+              case .result(_, let values) = message,
+              values.count == Self.statePropertyKeys.count,
+              let delayOff = Int(values[Self.statePropertyKeys.count - 1].stringValue),
+              (0...60).contains(delayOff) else {
+            return false
+        }
+        return true
+    }
+
     private func handleDiscovered(_ device: YeelightDevice, sourceHost: String) {
         let now = Date()
         guard discoveryCandidateRegistry.acceptsPacket(from: sourceHost, at: now) else {
@@ -1906,6 +2369,12 @@ final class AppState: ObservableObject {
         var merged = discovered
         if discovered.name.isEmpty {
             merged.name = existing.name
+        }
+        if connectionSession?.deviceID == existing.id, isConnectionReady {
+            merged.state = existing.state
+            merged.state.online = true
+        } else {
+            merged.state.delayOffMinutes = existing.state.delayOffMinutes
         }
         return merged
     }
@@ -2023,6 +2492,39 @@ final class AppState: ObservableObject {
             await MainActor.run {
                 guard !Task.isCancelled else { return }
                 self?.isRefreshingState = false
+                self?.scheduleSleepTimerStateRefreshIfNeeded()
+            }
+        }
+    }
+
+    private func scheduleSleepTimerStateRefreshIfNeeded() {
+        sleepTimerRefreshTask?.cancel()
+        sleepTimerRefreshTask = nil
+
+        guard let session = connectionSession,
+              isConnectionReady,
+              selectedDeviceDelayOffMinutes > 0 else {
+            return
+        }
+
+        sleepTimerRefreshTask = Task { [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: 60_000_000_000)
+                try Task.checkCancellation()
+            } catch {
+                return
+            }
+
+            guard let self,
+                  self.sessionIsActive(id: session.id, deviceID: session.deviceID),
+                  self.selectedDeviceDelayOffMinutes > 0 else {
+                return
+            }
+
+            self.sleepTimerRefreshTask = nil
+            let refreshed = await self.refreshSelectedDeviceState(in: session)
+            if !refreshed {
+                self.scheduleSleepTimerStateRefreshIfNeeded()
             }
         }
     }
@@ -2033,6 +2535,13 @@ final class AppState: ObservableObject {
             return nil
         }
 
+        return await sendCommand(in: session, builder)
+    }
+
+    private func sendCommand(
+        in session: ConnectionSession,
+        _ builder: @escaping @Sendable (Int, Int) -> YeelightCommand
+    ) async -> YeelightIncomingMessage? {
         do {
             try await rateLimiter.waitTurn(connectionID: session.id)
             try Task.checkCancellation()
@@ -2043,6 +2552,7 @@ final class AppState: ObservableObject {
             let commandID = await session.connection.nextCommandID()
             let command = builder(commandID, transitionDuration)
             let message = try await session.connection.send(command, timeout: commandTimeout)
+            try Task.checkCancellation()
             guard sessionIsActive(id: session.id, deviceID: session.deviceID) else {
                 return nil
             }
@@ -2064,6 +2574,16 @@ final class AppState: ObservableObject {
         connectionSession?.id == id
             && connectionSession?.deviceID == deviceID
             && selectedDeviceID == deviceID
+    }
+
+    private func sleepTimerOperationIsActive(_ operationID: UUID, session: ConnectionSession) -> Bool {
+        !Task.isCancelled
+            && sleepTimerOperationID == operationID
+            && sessionIsActive(id: session.id, deviceID: session.deviceID)
+    }
+
+    private func delayOffMatchesScheduledDuration(reported: Int, scheduled: Int) -> Bool {
+        reported == scheduled || (scheduled > 1 && reported == scheduled - 1)
     }
 
     private func applyIncomingMessage(_ message: YeelightIncomingMessage) {
@@ -2106,6 +2626,7 @@ final class AppState: ObservableObject {
         updateControlsFromSelectedDevice()
         preferences.savedDevices = devices
         persistDeferred()
+        scheduleSleepTimerStateRefreshIfNeeded()
     }
 
     private func applyNotification(_ properties: [String: String]) {
@@ -2126,6 +2647,7 @@ final class AppState: ObservableObject {
         updateControlsFromSelectedDevice()
         preferences.savedDevices = devices
         persistDeferred()
+        scheduleSleepTimerStateRefreshIfNeeded()
     }
 
     private func commitSelectedPower(_ isOn: Bool) {
@@ -2309,6 +2831,11 @@ final class AppState: ObservableObject {
         presetTask = nil
         refreshTask?.cancel()
         refreshTask = nil
+        sleepTimerTask?.cancel()
+        sleepTimerTask = nil
+        sleepTimerOperationID = nil
+        sleepTimerRefreshTask?.cancel()
+        sleepTimerRefreshTask = nil
         reconnectTask?.cancel()
         reconnectTask = nil
         isRefreshingState = false
@@ -2374,6 +2901,9 @@ final class AppState: ObservableObject {
     }
 
     private func markSelectedDeviceOffline(message: String? = nil) {
+        sleepTimerRefreshTask?.cancel()
+        sleepTimerRefreshTask = nil
+
         if let index = selectedDeviceIndex {
             devices[index].state.online = false
         }

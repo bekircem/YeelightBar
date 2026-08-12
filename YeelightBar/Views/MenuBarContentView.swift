@@ -180,6 +180,8 @@ struct MenuBarContentView: View {
                 valueLabel: "\(Int(state.brightness.rounded()))%"
             )
 
+            sleepTimerRow
+
             lightModeControls
 
             Divider()
@@ -190,6 +192,80 @@ struct MenuBarContentView: View {
             }
         }
         .disabled(!state.hasSelectedDevice)
+    }
+
+    private var sleepTimerRow: some View {
+        Button {
+            state.showSleepTimer()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: state.selectedDeviceDelayOffMinutes > 0 ? "moon.zzz.fill" : "moon.zzz")
+                    .foregroundStyle(state.selectedDeviceDelayOffMinutes > 0 ? Color.indigo : Color.secondary)
+                    .frame(width: 16)
+
+                Text("Sleep Timer")
+                    .lineLimit(1)
+
+                Spacer(minLength: 6)
+
+                Text(sleepTimerRowValue)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!state.selectedDeviceSupportsSleepTimer)
+        .help(sleepTimerHelp)
+        .accessibilityLabel("Sleep Timer")
+        .accessibilityValue(sleepTimerAccessibilityValue)
+    }
+
+    private var sleepTimerRowValue: String {
+        if !state.selectedDeviceSupportsSleepTimer {
+            return "Unsupported"
+        }
+        if state.selectedDeviceDelayOffMinutes > 0 {
+            if !state.canControlSelectedDevice {
+                return "Last known \(state.selectedDeviceDelayOffMinutes) min"
+            }
+            return "\(state.selectedDeviceDelayOffMinutes) min left"
+        }
+        return "Set…"
+    }
+
+    private var sleepTimerHelp: String {
+        if !state.selectedDeviceSupportsSleepTimer {
+            return "This light does not advertise sleep timer support."
+        }
+        if !state.canControlSelectedDevice {
+            return state.selectedDeviceDelayOffMinutes > 0
+                ? "Last known timer status. Reconnect to verify or change it."
+                : "Reconnect to the light to start a sleep timer."
+        }
+        if state.selectedDeviceDelayOffMinutes > 0 {
+            return "Change or cancel the selected light's sleep timer"
+        }
+        return "Turn off the selected light after a delay"
+    }
+
+    private var sleepTimerAccessibilityValue: String {
+        if state.selectedDeviceDelayOffMinutes > 0 {
+            if !state.canControlSelectedDevice {
+                return "Last known timer, about \(state.selectedDeviceDelayOffMinutes) minutes. Reconnect to verify"
+            }
+            return "Turns off in about \(state.selectedDeviceDelayOffMinutes) minutes"
+        }
+        if !state.selectedDeviceSupportsSleepTimer {
+            return "Not supported by this light"
+        }
+        return "Not set"
     }
 
     private var lightModeControls: some View {

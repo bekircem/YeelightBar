@@ -160,4 +160,52 @@ final class LightPresetTests: XCTestCase {
         XCTAssertEqual(state.flowParameters, "500,1,255,100")
         XCTAssertEqual(state.delayOffMinutes, 15)
     }
+
+    func testSleepTimerMinutesRejectsValuesOutsideProtocolRangeWithoutClamping() {
+        XCTAssertEqual(SleepTimerMinutes(1)?.rawValue, 1)
+        XCTAssertEqual(SleepTimerMinutes(60)?.rawValue, 60)
+        XCTAssertNil(SleepTimerMinutes(0))
+        XCTAssertNil(SleepTimerMinutes(61))
+        XCTAssertNil(SleepTimerMinutes(Int.min))
+        XCTAssertNil(SleepTimerMinutes(Int.max))
+    }
+
+    func testSleepTimerBuiltInAppearancesDescribeExpectedLooks() {
+        XCTAssertNil(SleepTimerAppearance.current.builtInLook)
+        XCTAssertEqual(
+            SleepTimerAppearance.warmDim.builtInLook,
+            CurrentLightLook(value: .colorTemperature(1900), brightness: 5)
+        )
+        XCTAssertEqual(
+            SleepTimerAppearance.softRose.builtInLook,
+            CurrentLightLook(value: .color(rgb: 0xFF6F91), brightness: 5)
+        )
+
+        let presetAppearance = SleepTimerAppearance.preset(id: "custom-bedtime")
+        XCTAssertEqual(presetAppearance.presetID, "custom-bedtime")
+        XCTAssertNil(presetAppearance.builtInLook)
+    }
+
+    func testDeviceStateClampsReportedDelayOffToProtocolRange() {
+        var state = DeviceState(delayOffMinutes: 90)
+        XCTAssertEqual(state.delayOffMinutes, 60)
+
+        state = DeviceState(delayOffMinutes: 30)
+        state.apply(properties: ["delayoff": "999"])
+        XCTAssertEqual(state.delayOffMinutes, 30)
+
+        state.apply(properties: ["delayoff": "-1"])
+        XCTAssertEqual(state.delayOffMinutes, 30)
+
+        state.apply(properties: ["delayoff": "0"])
+        XCTAssertEqual(state.delayOffMinutes, 0)
+    }
+
+    func testMalformedDelayOffDoesNotEraseLastKnownTimer() {
+        var state = DeviceState(delayOffMinutes: 30)
+
+        state.apply(properties: ["delayoff": "not-a-number"])
+
+        XCTAssertEqual(state.delayOffMinutes, 30)
+    }
 }

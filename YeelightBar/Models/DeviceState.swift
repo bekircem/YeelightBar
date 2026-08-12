@@ -76,7 +76,7 @@ struct DeviceState: Codable, Equatable, Sendable {
         self.colorMode = colorMode
         self.flowing = flowing
         self.flowParameters = flowParameters
-        self.delayOffMinutes = delayOffMinutes.clamped(to: 0...1440)
+        self.delayOffMinutes = delayOffMinutes.clamped(to: 0...60)
         self.online = online
     }
 
@@ -167,8 +167,10 @@ struct DeviceState: Codable, Equatable, Sendable {
             flowParameters = value
         }
 
-        if let value = properties["delayoff"] {
-            delayOffMinutes = (Int(value) ?? 0).clamped(to: 0...1440)
+        if let value = properties["delayoff"],
+           let parsed = Int(value),
+           (0...60).contains(parsed) {
+            delayOffMinutes = parsed
         }
     }
 
