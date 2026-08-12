@@ -70,6 +70,7 @@ Stable DMGs are signed with Developer ID, notarized by Apple, stapled, and publi
 ## Features
 
 - Power, brightness, color temperature, RGB, and HSV controls, shown according to the selected light's capabilities
+- A device-native 1–60 minute Sleep Timer with Keep Current, Warm Dim, Soft Rose, or a compatible static mode until the light turns off
 - Reusable static looks, favorites, and local color flows
 - A responsive Modes & Flows library with custom flow creation
 - Global keyboard shortcuts for common controls and direct mode activation
@@ -93,6 +94,7 @@ Compatibility depends on support for the local Yeelight LAN protocol, not the br
 ## Everyday use
 
 - Click the menu bar icon for quick power, brightness, temperature, and color controls.
+- Choose **Sleep Timer** in the menu bar panel to turn off the selected light after a delay. Once started, the timer runs on the light even if YeelightBar quits.
 - Favorite frequently used modes to keep them in the quick-access menu.
 - Open **Settings → Modes & Flows** to save the current static look or create a flow.
 - Open **Settings → Shortcuts** to record global actions or direct mode shortcuts.

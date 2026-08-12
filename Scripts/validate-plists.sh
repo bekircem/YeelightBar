@@ -7,7 +7,7 @@ plutil -lint \
   YeelightBar/PrivacyInfo.xcprivacy
 
 grep -q 'io.github.bekircem.yeelightbar' YeelightBar.xcodeproj/project.pbxproj
-grep -q 'MARKETING_VERSION = 1.1.0;' YeelightBar.xcodeproj/project.pbxproj
+grep -q 'MARKETING_VERSION = 1.2.0;' YeelightBar.xcodeproj/project.pbxproj
 grep -q 'com.apple.security.files.user-selected.read-write' YeelightBar/YeelightBar.entitlements
 grep -q 'com.apple.security.temporary-exception.mach-lookup.global-name' YeelightBar/YeelightBar.entitlements
 grep -q 'NSPrivacyAccessedAPICategoryUserDefaults' YeelightBar/PrivacyInfo.xcprivacy

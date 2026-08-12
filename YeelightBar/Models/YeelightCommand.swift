@@ -1,5 +1,79 @@
 import Foundation
 
+struct SleepTimerMinutes: RawRepresentable, Equatable, Hashable, Sendable {
+    static let validRange = 1...60
+
+    let rawValue: Int
+
+    init?(rawValue: Int) {
+        guard Self.validRange.contains(rawValue) else {
+            return nil
+        }
+
+        self.rawValue = rawValue
+    }
+
+    init?(_ value: Int) {
+        self.init(rawValue: value)
+    }
+}
+
+enum SleepTimerAppearance: Hashable, Identifiable, Sendable {
+    case current
+    case warmDim
+    case softRose
+    case preset(id: String)
+
+    static let warmDimTemperature = 1900
+    static let softRoseRGB = 0xFF6F91
+    static let builtInBrightness = 5
+
+    var id: String {
+        switch self {
+        case .current:
+            return "current"
+        case .warmDim:
+            return "warm-dim"
+        case .softRose:
+            return "soft-rose"
+        case .preset(let id):
+            return "preset:\(id)"
+        }
+    }
+
+    var builtInLook: CurrentLightLook? {
+        switch self {
+        case .current, .preset:
+            return nil
+        case .warmDim:
+            return CurrentLightLook(
+                value: .colorTemperature(Self.warmDimTemperature),
+                brightness: Self.builtInBrightness
+            )
+        case .softRose:
+            return CurrentLightLook(
+                value: .color(rgb: Self.softRoseRGB),
+                brightness: Self.builtInBrightness
+            )
+        }
+    }
+
+    var presetID: String? {
+        guard case .preset(let id) = self else {
+            return nil
+        }
+
+        return id
+    }
+}
+
+enum SleepTimerOperationResult: Equatable, Sendable {
+    case success
+    case timerStartedAppearanceFailed(String)
+    case verificationPending(String)
+    case failure(String)
+}
+
 enum YeelightMethod: String, Codable, CaseIterable, Sendable {
     case getProp = "get_prop"
     case setPower = "set_power"
@@ -11,6 +85,9 @@ enum YeelightMethod: String, Codable, CaseIterable, Sendable {
     case startColorFlow = "start_cf"
     case stopColorFlow = "stop_cf"
     case setScene = "set_scene"
+    case addPowerOffTimer = "cron_add"
+    case getPowerOffTimer = "cron_get"
+    case deletePowerOffTimer = "cron_del"
 }
 
 enum YeelightParameter: Equatable, Sendable {
@@ -123,6 +200,34 @@ struct YeelightCommand: Equatable, Sendable {
                 .int(brightness.clamped(to: 1...100))
             ]
         )
+    }
+
+    static func setSceneAutoDelayOff(id: Int, brightness: Int, minutes: SleepTimerMinutes) -> YeelightCommand {
+        YeelightCommand(
+            id: id,
+            method: .setScene,
+            params: [
+                .string("auto_delay_off"),
+                .int(brightness.clamped(to: 1...100)),
+                .int(minutes.rawValue)
+            ]
+        )
+    }
+
+    static func addPowerOffTimer(id: Int, minutes: SleepTimerMinutes) -> YeelightCommand {
+        YeelightCommand(
+            id: id,
+            method: .addPowerOffTimer,
+            params: [.int(0), .int(minutes.rawValue)]
+        )
+    }
+
+    static func getPowerOffTimer(id: Int) -> YeelightCommand {
+        YeelightCommand(id: id, method: .getPowerOffTimer, params: [.int(0)])
+    }
+
+    static func deletePowerOffTimer(id: Int) -> YeelightCommand {
+        YeelightCommand(id: id, method: .deletePowerOffTimer, params: [.int(0)])
     }
 
     static func startColorFlow(id: Int, flow: ColorFlow) -> YeelightCommand {
