@@ -743,6 +743,9 @@ private final class FakeYeelightTCPServer: @unchecked Sendable {
     private var connection: NWConnection?
     private var commands: [RecordedCommand] = []
     private var delayOffMinutes = 0
+    private var receiveBuffer = Data()
+
+    private static let frameDelimiter = Data([0x0D, 0x0A])
 
     var port: UInt16 {
         listener.port?.rawValue ?? 0
@@ -757,6 +760,7 @@ private final class FakeYeelightTCPServer: @unchecked Sendable {
         try await withCheckedThrowingContinuation { continuation in
             listener.newConnectionHandler = { [weak self] connection in
                 self?.connection = connection
+                self?.receiveBuffer.removeAll(keepingCapacity: true)
                 self?.receive(on: connection)
                 connection.start(queue: self?.queue ?? .global())
             }
@@ -803,99 +807,120 @@ private final class FakeYeelightTCPServer: @unchecked Sendable {
                 return
             }
 
-            if let data, !data.isEmpty,
-               let object = try? JSONSerialization.jsonObject(with: data.filter { $0 != 13 && $0 != 10 }),
-               let dictionary = object as? [String: Any],
-               let id = dictionary["id"] as? Int {
-                let method = dictionary["method"] as? String ?? ""
-                let params = (dictionary["params"] as? [Any] ?? []).map { String(describing: $0) }
-                self.commands.append(RecordedCommand(method: method, params: params))
-
-                let commandShouldFail: Bool
-                if case .failMethod(let failingMethod) = responseMode {
-                    commandShouldFail = failingMethod == method
-                } else {
-                    commandShouldFail = false
-                }
-
-                if !commandShouldFail, method == "cron_add", params.count >= 2 {
-                    self.delayOffMinutes = Int(params[1]) ?? 0
-                } else if !commandShouldFail, method == "cron_del" {
-                    self.delayOffMinutes = 0
-                }
-
-                let result: [String]
-                if method == "get_prop" {
-                    result = [
-                        "on", "50", "4000", "16777215", "0", "0", "1", "0", "",
-                        String(self.delayOffMinutes)
-                    ]
-                } else {
-                    result = ["ok"]
-                }
-
-                if responseMode != .noResponse {
-                    if responseMode == .gracefulEOF {
-                        connection.send(
-                            content: nil,
-                            contentContext: .finalMessage,
-                            isComplete: true,
-                            completion: .contentProcessed { _ in }
-                        )
-                        return
-                    }
-
-                    let payload: [String: Any]
-                    if commandShouldFail {
-                        payload = [
-                            "id": id,
-                            "error": ["code": -1, "message": "Simulated command failure"]
-                        ]
-                    } else {
-                        payload = ["id": id, "result": result]
-                    }
-                    if var responseData = try? JSONSerialization.data(withJSONObject: payload, options: []) {
-                        responseData.append(contentsOf: [0x0D, 0x0A])
-                        let finalResponseData = responseData
-                        let sendResponse: @Sendable () -> Void = {
-                            connection.send(content: finalResponseData, completion: .contentProcessed { _ in })
-                        }
-
-                        switch responseMode {
-                        case .normal:
-                            sendResponse()
-                        case .delayed(let delay):
-                            queue.asyncAfter(deadline: .now() + delay, execute: sendResponse)
-                        case .fragmented:
-                            let splitIndex = finalResponseData.count / 2
-                            let first = finalResponseData.prefix(splitIndex)
-                            let second = finalResponseData.suffix(from: splitIndex)
-                            connection.send(content: Data(first), completion: .contentProcessed { _ in
-                                connection.send(content: Data(second), completion: .contentProcessed { _ in })
-                            })
-                        case .combinedFrames:
-                            var combinedData = finalResponseData
-                            combinedData.append(finalResponseData)
-                            connection.send(content: combinedData, completion: .contentProcessed { _ in })
-                        case .gracefulEOF:
-                            break
-                        case .oversizedFrame:
-                            connection.send(
-                                content: Data(repeating: 0x41, count: YeelightConnection.maximumLogicalFrameSize + 1),
-                                completion: .contentProcessed { _ in }
-                            )
-                        case .malformedFrame:
-                            connection.send(content: Data("{not-json}\r\n".utf8), completion: .contentProcessed { _ in })
-                        case .failMethod:
-                            sendResponse()
-                        case .noResponse:
-                            break
-                        }
-                    }
-                }
+            if let data, !data.isEmpty {
+                self.receiveBuffer.append(data)
+                self.processCompleteFrames(on: connection)
             }
 
             self.receive(on: connection)
+        }
+    }
+
+    private func processCompleteFrames(on connection: NWConnection) {
+        while let delimiterRange = receiveBuffer.range(of: Self.frameDelimiter) {
+            let frame = receiveBuffer.subdata(in: receiveBuffer.startIndex..<delimiterRange.lowerBound)
+            receiveBuffer.removeSubrange(receiveBuffer.startIndex..<delimiterRange.upperBound)
+            processFrame(frame, on: connection)
+        }
+    }
+
+    private func processFrame(_ frame: Data, on connection: NWConnection) {
+        guard !frame.isEmpty,
+              let object = try? JSONSerialization.jsonObject(with: frame),
+              let dictionary = object as? [String: Any],
+              let id = dictionary["id"] as? Int else {
+            return
+        }
+
+        let method = dictionary["method"] as? String ?? ""
+        let params = (dictionary["params"] as? [Any] ?? []).map { String(describing: $0) }
+        commands.append(RecordedCommand(method: method, params: params))
+
+        let commandShouldFail: Bool
+        if case .failMethod(let failingMethod) = responseMode {
+            commandShouldFail = failingMethod == method
+        } else {
+            commandShouldFail = false
+        }
+
+        if !commandShouldFail, method == "cron_add", params.count >= 2 {
+            delayOffMinutes = Int(params[1]) ?? 0
+        } else if !commandShouldFail, method == "cron_del" {
+            delayOffMinutes = 0
+        }
+
+        let result: [String]
+        if method == "get_prop" {
+            result = [
+                "on", "50", "4000", "16777215", "0", "0", "1", "0", "",
+                String(delayOffMinutes)
+            ]
+        } else {
+            result = ["ok"]
+        }
+
+        guard responseMode != .noResponse else {
+            return
+        }
+
+        if responseMode == .gracefulEOF {
+            connection.send(
+                content: nil,
+                contentContext: .finalMessage,
+                isComplete: true,
+                completion: .contentProcessed { _ in }
+            )
+            return
+        }
+
+        let payload: [String: Any]
+        if commandShouldFail {
+            payload = [
+                "id": id,
+                "error": ["code": -1, "message": "Simulated command failure"]
+            ]
+        } else {
+            payload = ["id": id, "result": result]
+        }
+        guard var responseData = try? JSONSerialization.data(withJSONObject: payload, options: []) else {
+            return
+        }
+
+        responseData.append(Self.frameDelimiter)
+        let finalResponseData = responseData
+        let sendResponse: @Sendable () -> Void = {
+            connection.send(content: finalResponseData, completion: .contentProcessed { _ in })
+        }
+
+        switch responseMode {
+        case .normal:
+            sendResponse()
+        case .delayed(let delay):
+            queue.asyncAfter(deadline: .now() + delay, execute: sendResponse)
+        case .fragmented:
+            let splitIndex = finalResponseData.count / 2
+            let first = finalResponseData.prefix(splitIndex)
+            let second = finalResponseData.suffix(from: splitIndex)
+            connection.send(content: Data(first), completion: .contentProcessed { _ in
+                connection.send(content: Data(second), completion: .contentProcessed { _ in })
+            })
+        case .combinedFrames:
+            var combinedData = finalResponseData
+            combinedData.append(finalResponseData)
+            connection.send(content: combinedData, completion: .contentProcessed { _ in })
+        case .gracefulEOF:
+            break
+        case .oversizedFrame:
+            connection.send(
+                content: Data(repeating: 0x41, count: YeelightConnection.maximumLogicalFrameSize + 1),
+                completion: .contentProcessed { _ in }
+            )
+        case .malformedFrame:
+            connection.send(content: Data("{not-json}\r\n".utf8), completion: .contentProcessed { _ in })
+        case .failMethod:
+            sendResponse()
+        case .noResponse:
+            break
         }
     }
 }
