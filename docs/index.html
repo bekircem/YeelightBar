@@ -271,9 +271,42 @@
     .hero-meta span { position: relative; }
     .hero-meta span + span::before { content: "·"; position: absolute; left: -11px; color: #4f5968; }
 
+    .hero-install {
+      display: flex;
+      max-width: 840px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 9px 12px;
+      margin: 24px auto 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .hero-install strong { color: var(--text); font-weight: 680; }
+
+    .hero-install code {
+      max-width: 100%;
+      overflow-x: auto;
+      padding: 7px 10px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: rgba(255, 255, 255, 0.045);
+      color: #c8fff8;
+      white-space: nowrap;
+    }
+
+    .hero-install a {
+      color: #b9c8e2;
+      font-weight: 680;
+      text-underline-offset: 3px;
+    }
+
+    .hero-install a:hover { color: var(--text); }
+
     .showcase {
       position: relative;
-      margin: 8px 0 90px;
+      margin: 8px auto 90px;
       padding: 1px;
       border-radius: 25px;
       background: linear-gradient(120deg, rgba(73, 222, 208, 0.35), rgba(255, 255, 255, 0.1) 38%, rgba(255, 160, 67, 0.38));
@@ -507,23 +540,51 @@
 
     .install-shell {
       position: relative;
-      overflow: hidden;
-      padding: 1px;
-      border-radius: 24px;
-      background: linear-gradient(115deg, rgba(255, 160, 67, 0.44), var(--line), rgba(79, 124, 255, 0.42));
     }
 
     .install-panel {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      align-items: center;
-      gap: 32px;
-      padding: 38px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: stretch;
+      gap: 14px;
+      padding: 0;
       border: 0;
-      background: linear-gradient(145deg, #141a27, #0c111a);
+      background: none;
+      box-shadow: none;
     }
 
     .install-panel > * { min-width: 0; }
+
+    .install-option {
+      display: flex;
+      min-height: 330px;
+      flex-direction: column;
+      padding: 30px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background:
+        radial-gradient(circle at 92% 4%, var(--install-glow, rgba(79, 124, 255, 0.15)), transparent 14rem),
+        linear-gradient(145deg, rgba(20, 26, 39, 0.96), rgba(12, 17, 26, 0.96));
+      box-shadow: inset 0 1px rgba(255, 255, 255, 0.035);
+    }
+
+    .install-option h3 {
+      margin: 0 0 9px;
+      font-size: 24px;
+      letter-spacing: -0.03em;
+    }
+
+    .install-option-copy { margin: 0; color: var(--muted); font-size: 15px; }
+
+    .install-option pre {
+      margin: 24px 0 0;
+      padding: 13px 15px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(3, 6, 11, 0.64);
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+    }
 
     .terminal-label {
       margin: 0 0 14px;
@@ -551,6 +612,8 @@
       flex-wrap: wrap;
       justify-content: flex-end;
       gap: 10px;
+      margin-top: auto;
+      padding-top: 24px;
     }
 
     .signed-note {
@@ -705,6 +768,8 @@
       .hero { padding: 83px 0 52px; }
       h1 { font-size: clamp(43px, 14vw, 68px); letter-spacing: -0.058em; }
       .hero-copy { font-size: 17px; }
+      .hero-install { display: grid; justify-items: center; }
+      .hero-install code { white-space: normal; overflow-wrap: anywhere; }
       .showcase { margin-bottom: 72px; border-radius: 17px; }
       .showcase img { border-radius: 16px; }
       .section-block { padding: 76px 0; }
@@ -714,7 +779,8 @@
       .feature-kicker { margin-bottom: 35px; }
       .setup-layout { grid-template-columns: 1fr; }
       .network-card { min-height: 390px; }
-      .install-panel { grid-template-columns: 1fr; padding: 28px; }
+      .install-panel { grid-template-columns: 1fr; }
+      .install-option { min-height: 0; padding: 28px; }
       .install-actions { justify-content: flex-start; }
       .privacy-layout { grid-template-columns: 1fr; }
       .privacy-statement { min-height: 320px; }
@@ -735,7 +801,7 @@
       .privacy-panel,
       .compat-card,
       .network-card { padding: 22px; }
-      .install-panel { padding: 24px 20px; }
+      .install-option { padding: 24px 20px; }
       .install-actions .button { width: 100%; }
       .data-row { grid-template-columns: 1fr; gap: 5px; }
       .final-cta .button { width: 100%; }
@@ -757,6 +823,7 @@
       <div class="nav-links">
         <a href="#features">Features</a>
         <a href="#setup">Setup</a>
+        <a href="#install">Install</a>
         <a href="#privacy">Privacy</a>
       </div>
       <a class="button button-primary button-small" href="https://github.com/bekircem/YeelightBar/releases/latest">Download</a>
@@ -777,6 +844,11 @@
         <span>macOS 13+</span>
         <span>Apple Silicon &amp; Intel</span>
       </p>
+      <div class="hero-install" aria-label="Homebrew installation option">
+        <strong>Also on Homebrew</strong>
+        <code>brew install --cask bekircem/yeelightbar/yeelightbar</code>
+        <a href="#install">Compare install options <span aria-hidden="true">↓</span></a>
+      </div>
     </section>
 
     <div class="showcase container">
@@ -881,15 +953,23 @@
 
       <div class="install-shell">
         <div class="install-panel">
-          <div>
-            <p class="terminal-label">Homebrew</p>
+          <article class="install-option" style="--install-glow: rgba(73, 222, 208, 0.16)">
+            <p class="terminal-label">Homebrew Cask</p>
+            <h3>Install from Terminal</h3>
+            <p class="install-option-copy">Use one command to install the same signed and notarized YeelightBar app. Homebrew users can update through Homebrew or the signed in-app updater.</p>
             <pre><code><span class="prompt">$</span> brew install --cask bekircem/yeelightbar/yeelightbar</code></pre>
+            <p class="signed-note">No account or separate package manager tap setup required</p>
+          </article>
+          <article class="install-option" style="--install-glow: rgba(255, 160, 67, 0.16)">
+            <p class="terminal-label">Direct download</p>
+            <h3>Signed &amp; notarized DMG</h3>
+            <p class="install-option-copy">Download the latest disk image from GitHub Releases, open it, and drag YeelightBar to Applications.</p>
+            <div class="install-actions">
+              <a class="button button-primary" href="https://github.com/bekircem/YeelightBar/releases/latest">Get the DMG</a>
+              <a class="button button-secondary" href="https://github.com/bekircem/YeelightBar#installation">Install guide</a>
+            </div>
             <p class="signed-note">Developer ID signed, Apple notarized, and ready for Gatekeeper</p>
-          </div>
-          <div class="install-actions">
-            <a class="button button-primary" href="https://github.com/bekircem/YeelightBar/releases/latest">Get the DMG</a>
-            <a class="button button-secondary" href="https://github.com/bekircem/YeelightBar#installation">Install guide</a>
-          </div>
+          </article>
         </div>
       </div>
     </section>
