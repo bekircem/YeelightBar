@@ -16,6 +16,7 @@
 </p>
 
 <p align="center">
+  <a href="https://bekircem.github.io/YeelightBar/">Website</a> ·
   <a href="#installation">Installation</a> ·
   <a href="#first-run">First run</a> ·
   <a href="#features">Features</a> ·
