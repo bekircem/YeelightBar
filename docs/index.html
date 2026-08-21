@@ -1,0 +1,999 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>YeelightBar — Control your lights from the menu bar</title>
+  <meta name="description" content="A native, privacy-friendly macOS menu bar controller for Yeelight-compatible LAN lights. No account, cloud, analytics, or telemetry.">
+  <meta name="theme-color" content="#070a11">
+  <link rel="canonical" href="https://bekircem.github.io/YeelightBar/">
+  <link rel="icon" type="image/png" sizes="64x64" href="assets/app-icon-64.png">
+  <link rel="apple-touch-icon" href="assets/app-icon-256.png">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="YeelightBar">
+  <meta property="og:title" content="YeelightBar — Control your lights from the menu bar">
+  <meta property="og:description" content="Native macOS control for Yeelight-compatible LAN lights. No account. No cloud. No telemetry.">
+  <meta property="og:url" content="https://bekircem.github.io/YeelightBar/">
+  <meta property="og:image" content="https://bekircem.github.io/YeelightBar/assets/social-card.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="YeelightBar controlling a light from the macOS menu bar">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="YeelightBar — Control your lights from the menu bar">
+  <meta name="twitter:description" content="Native macOS control for Yeelight-compatible LAN lights. No account. No cloud. No telemetry.">
+  <meta name="twitter:image" content="https://bekircem.github.io/YeelightBar/assets/social-card.png">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "YeelightBar",
+    "applicationCategory": "UtilitiesApplication",
+    "operatingSystem": "macOS 13 or later",
+    "description": "A native, privacy-friendly macOS menu bar controller for Yeelight-compatible LAN lights.",
+    "url": "https://bekircem.github.io/YeelightBar/",
+    "downloadUrl": "https://github.com/bekircem/YeelightBar/releases/latest",
+    "softwareHelp": "https://github.com/bekircem/YeelightBar/issues",
+    "license": "https://github.com/bekircem/YeelightBar/blob/main/LICENSE",
+    "isAccessibleForFree": true
+  }
+  </script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #070a11;
+      --bg-deep: #04060a;
+      --surface: rgba(17, 23, 35, 0.76);
+      --surface-strong: #111725;
+      --text: #f7f9fd;
+      --muted: #a9b3c3;
+      --subtle: #7f8999;
+      --line: rgba(255, 255, 255, 0.1);
+      --line-strong: rgba(255, 255, 255, 0.16);
+      --amber: #ffa043;
+      --cyan: #49ded0;
+      --blue: #4f7cff;
+      --radius: 22px;
+      --shadow: 0 28px 90px rgba(0, 0, 0, 0.42);
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 96px;
+    }
+
+    body {
+      min-width: 280px;
+      margin: 0;
+      overflow-x: hidden;
+      background:
+        radial-gradient(circle at 16% 18%, rgba(33, 104, 194, 0.17), transparent 28rem),
+        radial-gradient(circle at 86% 28%, rgba(255, 135, 42, 0.13), transparent 26rem),
+        linear-gradient(180deg, var(--bg-deep), var(--bg) 32rem, #080b12);
+      color: var(--text);
+      font: 16px/1.6 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      background: linear-gradient(115deg, transparent 38%, rgba(73, 222, 208, 0.035) 50%, transparent 62%);
+    }
+
+    a { color: inherit; }
+
+    .container {
+      width: min(1120px, calc(100% - 48px));
+      margin-inline: auto;
+    }
+
+    .site-header {
+      position: sticky;
+      top: 14px;
+      z-index: 20;
+      padding-top: 14px;
+    }
+
+    .nav {
+      display: flex;
+      min-height: 62px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 9px 10px 9px 14px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(8, 11, 18, 0.76);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+      backdrop-filter: blur(20px) saturate(140%);
+      -webkit-backdrop-filter: blur(20px) saturate(140%);
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text);
+      font-weight: 720;
+      letter-spacing: -0.02em;
+      text-decoration: none;
+    }
+
+    .brand img { width: 38px; height: 38px; border-radius: 10px; }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 26px;
+      margin-left: auto;
+    }
+
+    .nav-links a {
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 620;
+      text-decoration: none;
+      transition: color 160ms ease;
+    }
+
+    .nav-links a:hover { color: var(--text); }
+
+    .button {
+      display: inline-flex;
+      min-height: 48px;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      padding: 11px 19px;
+      border: 1px solid transparent;
+      border-radius: 13px;
+      font-size: 15px;
+      font-weight: 700;
+      line-height: 1.2;
+      text-decoration: none;
+      transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+    }
+
+    .button:hover { transform: translateY(-2px); }
+
+    .button-primary {
+      background: linear-gradient(135deg, #ffad55, #ff8a2b);
+      color: #241205;
+      box-shadow: 0 10px 30px rgba(255, 145, 48, 0.22);
+    }
+
+    .button-primary:hover { box-shadow: 0 14px 36px rgba(255, 145, 48, 0.32); }
+
+    .button-secondary {
+      border-color: var(--line-strong);
+      background: rgba(255, 255, 255, 0.045);
+      color: var(--text);
+    }
+
+    .button-small { min-height: 42px; padding: 9px 16px; font-size: 14px; }
+
+    .hero {
+      position: relative;
+      padding: 108px 0 70px;
+      text-align: center;
+    }
+
+    .hero::before,
+    .hero::after {
+      content: "";
+      position: absolute;
+      z-index: -1;
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      filter: blur(95px);
+      opacity: 0.2;
+      animation: glow-drift 8s ease-in-out infinite alternate;
+    }
+
+    .hero::before { left: 4%; top: 30%; background: var(--blue); }
+    .hero::after { right: 4%; top: 18%; background: var(--amber); animation-delay: -3s; }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 25px;
+      padding: 7px 12px;
+      border: 1px solid rgba(73, 222, 208, 0.22);
+      border-radius: 999px;
+      background: rgba(73, 222, 208, 0.07);
+      color: #9ff7ec;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.025em;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 14px rgba(73, 222, 208, 0.9);
+    }
+
+    h1 {
+      max-width: 940px;
+      margin: 0 auto;
+      font-size: clamp(48px, 7.8vw, 88px);
+      font-weight: 780;
+      letter-spacing: -0.062em;
+      line-height: 0.98;
+    }
+
+    .hero-accent {
+      display: block;
+      background: linear-gradient(90deg, #fff0d9 2%, var(--amber) 30%, var(--cyan) 70%, #b8c9ff 98%);
+      background-clip: text;
+      -webkit-background-clip: text;
+      color: transparent;
+    }
+
+    .hero-copy {
+      max-width: 710px;
+      margin: 28px auto 0;
+      color: var(--muted);
+      font-size: clamp(18px, 2.1vw, 21px);
+      line-height: 1.62;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 34px;
+    }
+
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px 18px;
+      margin: 21px 0 0;
+      color: var(--subtle);
+      font-size: 13px;
+      font-weight: 590;
+    }
+
+    .hero-meta span { position: relative; }
+    .hero-meta span + span::before { content: "·"; position: absolute; left: -11px; color: #4f5968; }
+
+    .showcase {
+      position: relative;
+      margin: 8px 0 90px;
+      padding: 1px;
+      border-radius: 25px;
+      background: linear-gradient(120deg, rgba(73, 222, 208, 0.35), rgba(255, 255, 255, 0.1) 38%, rgba(255, 160, 67, 0.38));
+      box-shadow: var(--shadow);
+      isolation: isolate;
+    }
+
+    .showcase::before {
+      content: "";
+      position: absolute;
+      z-index: -1;
+      right: 5%;
+      bottom: -7%;
+      left: 5%;
+      height: 18%;
+      background: linear-gradient(90deg, var(--amber), var(--cyan), var(--blue));
+      filter: blur(65px);
+      opacity: 0.27;
+    }
+
+    .showcase picture,
+    .showcase img { display: block; width: 100%; }
+
+    .showcase img {
+      height: auto;
+      border-radius: 24px;
+      background: #07101c;
+    }
+
+    .section-block {
+      padding: 98px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .section-heading {
+      display: grid;
+      grid-template-columns: minmax(0, 0.9fr) minmax(280px, 0.7fr);
+      align-items: end;
+      gap: 48px;
+      margin-bottom: 48px;
+    }
+
+    .section-label {
+      margin: 0 0 12px;
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 760;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .section-title {
+      max-width: 720px;
+      margin: 0;
+      font-size: clamp(34px, 4.6vw, 55px);
+      font-weight: 750;
+      letter-spacing: -0.046em;
+      line-height: 1.04;
+    }
+
+    .section-intro {
+      max-width: 570px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .feature-card {
+      position: relative;
+      min-height: 245px;
+      overflow: hidden;
+      padding: 25px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: linear-gradient(145deg, rgba(24, 31, 45, 0.78), rgba(12, 16, 25, 0.66));
+      box-shadow: inset 0 1px rgba(255, 255, 255, 0.035);
+    }
+
+    .feature-card::after {
+      content: "";
+      position: absolute;
+      top: -55px;
+      right: -45px;
+      width: 150px;
+      height: 150px;
+      border-radius: 50%;
+      background: var(--feature-color, var(--blue));
+      filter: blur(75px);
+      opacity: 0.12;
+      transition: opacity 180ms ease, transform 180ms ease;
+    }
+
+    .feature-card:hover::after { opacity: 0.2; transform: scale(1.12); }
+
+    .feature-kicker {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 50px;
+      color: var(--subtle);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .feature-kicker::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--feature-color, var(--blue));
+      box-shadow: 0 0 16px color-mix(in srgb, var(--feature-color, var(--blue)) 70%, transparent);
+    }
+
+    .feature-card h3 {
+      margin: 0 0 9px;
+      font-size: 21px;
+      letter-spacing: -0.025em;
+    }
+
+    .feature-card p { margin: 0; color: var(--muted); font-size: 15px; }
+
+    .setup-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 16px;
+    }
+
+    .steps {
+      display: grid;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      counter-reset: setup-step;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 58px minmax(0, 1fr);
+      gap: 18px;
+      padding: 28px 0;
+      border-bottom: 1px solid var(--line);
+      counter-increment: setup-step;
+    }
+
+    .step:first-child { padding-top: 0; }
+    .step:last-child { border-bottom: 0; }
+
+    .step::before {
+      content: "0" counter(setup-step);
+      display: grid;
+      width: 48px;
+      height: 48px;
+      place-items: center;
+      border: 1px solid var(--line-strong);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.035);
+      color: var(--amber);
+      font-size: 13px;
+      font-weight: 760;
+      letter-spacing: 0.05em;
+    }
+
+    .step h3 { margin: 2px 0 6px; font-size: 20px; letter-spacing: -0.02em; }
+    .step p { margin: 0; color: var(--muted); }
+
+    .network-card,
+    .install-panel,
+    .privacy-panel,
+    .compat-card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: inset 0 1px rgba(255, 255, 255, 0.035);
+    }
+
+    .network-card {
+      position: relative;
+      min-height: 100%;
+      overflow: hidden;
+      padding: 28px;
+      background:
+        radial-gradient(circle at 92% 6%, rgba(73, 222, 208, 0.15), transparent 12rem),
+        var(--surface);
+    }
+
+    .network-visual {
+      position: relative;
+      display: grid;
+      height: 168px;
+      place-items: center;
+      margin-bottom: 28px;
+    }
+
+    .network-visual::before,
+    .network-visual::after {
+      content: "";
+      position: absolute;
+      border: 1px solid rgba(73, 222, 208, 0.24);
+      border-radius: 50%;
+    }
+
+    .network-visual::before { width: 110px; height: 110px; }
+    .network-visual::after { width: 164px; height: 164px; opacity: 0.5; }
+
+    .network-node {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      width: 62px;
+      height: 62px;
+      place-items: center;
+      border: 1px solid rgba(73, 222, 208, 0.42);
+      border-radius: 19px;
+      background: #102728;
+      color: #a9fff4;
+      font-size: 21px;
+      font-weight: 730;
+      box-shadow: 0 0 42px rgba(73, 222, 208, 0.19);
+    }
+
+    .network-card h3 { margin: 0 0 8px; font-size: 22px; letter-spacing: -0.025em; }
+    .network-card p { margin: 0; color: var(--muted); font-size: 15px; }
+
+    .install-shell {
+      position: relative;
+      overflow: hidden;
+      padding: 1px;
+      border-radius: 24px;
+      background: linear-gradient(115deg, rgba(255, 160, 67, 0.44), var(--line), rgba(79, 124, 255, 0.42));
+    }
+
+    .install-panel {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 32px;
+      padding: 38px;
+      border: 0;
+      background: linear-gradient(145deg, #141a27, #0c111a);
+    }
+
+    .install-panel > * { min-width: 0; }
+
+    .terminal-label {
+      margin: 0 0 14px;
+      color: var(--subtle);
+      font-size: 12px;
+      font-weight: 720;
+      letter-spacing: 0.11em;
+      text-transform: uppercase;
+    }
+
+    pre {
+      max-width: 100%;
+      margin: 0;
+      overflow-x: auto;
+      color: #e8f0ff;
+      font: 15px/1.65 ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+      scrollbar-color: #4a5568 transparent;
+    }
+
+    code { font-family: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace; }
+    .prompt { color: var(--cyan); user-select: none; }
+
+    .install-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .signed-note {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin: 17px 0 0;
+      color: var(--subtle);
+      font-size: 13px;
+    }
+
+    .signed-note::before {
+      content: "✓";
+      display: grid;
+      width: 20px;
+      height: 20px;
+      flex: 0 0 auto;
+      place-items: center;
+      border-radius: 50%;
+      background: rgba(73, 222, 208, 0.12);
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .privacy-layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 0.78fr) minmax(0, 1.22fr);
+      gap: 16px;
+    }
+
+    .privacy-panel { padding: 30px; }
+
+    .privacy-statement {
+      min-height: 100%;
+      background:
+        radial-gradient(circle at 15% 85%, rgba(79, 124, 255, 0.14), transparent 18rem),
+        var(--surface);
+    }
+
+    .privacy-statement strong {
+      display: block;
+      margin-bottom: 18px;
+      font-size: clamp(28px, 3.7vw, 43px);
+      letter-spacing: -0.045em;
+      line-height: 1.08;
+    }
+
+    .privacy-statement p { margin: 0; color: var(--muted); }
+
+    .data-list { margin: 0; padding: 0; }
+
+    .data-row {
+      display: grid;
+      grid-template-columns: minmax(120px, 0.36fr) minmax(0, 0.64fr);
+      gap: 24px;
+      padding: 20px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .data-row:first-child { padding-top: 0; }
+    .data-row:last-child { padding-bottom: 0; border-bottom: 0; }
+    .data-row dt { color: var(--text); font-weight: 690; }
+    .data-row dd { margin: 0; color: var(--muted); }
+
+    .security-note {
+      margin: 16px 0 0;
+      padding: 17px 19px;
+      border: 1px solid rgba(255, 160, 67, 0.19);
+      border-radius: 15px;
+      background: rgba(255, 160, 67, 0.055);
+      color: #c8b9a8;
+      font-size: 14px;
+    }
+
+    .security-note strong { color: #ffd3a2; }
+
+    .compat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .compat-card { padding: 25px; }
+    .compat-card h3 { margin: 0 0 15px; font-size: 18px; }
+    .compat-card ul { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+    .compat-card li { position: relative; padding-left: 21px; color: var(--muted); font-size: 14px; }
+    .compat-card li::before { content: ""; position: absolute; top: 0.65em; left: 1px; width: 7px; height: 7px; border-radius: 50%; background: var(--card-dot, var(--cyan)); }
+
+    .final-cta {
+      position: relative;
+      overflow: hidden;
+      margin: 98px auto 0;
+      padding: 68px 32px;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background:
+        radial-gradient(circle at 8% 100%, rgba(79, 124, 255, 0.22), transparent 26rem),
+        radial-gradient(circle at 94% 8%, rgba(255, 160, 67, 0.2), transparent 25rem),
+        #101622;
+      text-align: center;
+      box-shadow: var(--shadow);
+    }
+
+    .final-cta::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(120deg, transparent 35%, rgba(73, 222, 208, 0.05), transparent 65%);
+    }
+
+    .final-cta img { width: 76px; height: 76px; border-radius: 19px; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35); }
+    .final-cta h2 { margin: 18px auto 12px; font-size: clamp(33px, 4.4vw, 50px); letter-spacing: -0.045em; line-height: 1.06; }
+    .final-cta p { max-width: 550px; margin: 0 auto; color: var(--muted); font-size: 17px; }
+
+    .site-footer {
+      padding: 38px 0 58px;
+      color: var(--subtle);
+      font-size: 13px;
+    }
+
+    .footer-main {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .footer-links { display: flex; flex-wrap: wrap; gap: 10px 20px; }
+    .footer-links a { color: var(--muted); font-weight: 600; text-decoration: none; }
+    .footer-links a:hover { color: var(--text); }
+    .footer-note { max-width: 760px; margin: 22px 0 0; }
+
+    :focus-visible {
+      outline: 3px solid #8bf5ea;
+      outline-offset: 4px;
+    }
+
+    @keyframes glow-drift {
+      to { transform: translate3d(0, 18px, 0) scale(1.08); }
+    }
+
+    @media (max-width: 720px) {
+      .container { width: min(100% - 32px, 1120px); }
+      .site-header { top: 8px; padding-top: 8px; }
+      .nav { min-height: 56px; padding: 7px 7px 7px 10px; }
+      .brand img { width: 36px; height: 36px; }
+      .nav-links { display: none; }
+      .hero { padding: 83px 0 52px; }
+      h1 { font-size: clamp(43px, 14vw, 68px); letter-spacing: -0.058em; }
+      .hero-copy { font-size: 17px; }
+      .showcase { margin-bottom: 72px; border-radius: 17px; }
+      .showcase img { border-radius: 16px; }
+      .section-block { padding: 76px 0; }
+      .section-heading { grid-template-columns: 1fr; gap: 18px; margin-bottom: 36px; }
+      .feature-grid { grid-template-columns: 1fr; }
+      .feature-card { min-height: 215px; }
+      .feature-kicker { margin-bottom: 35px; }
+      .setup-layout { grid-template-columns: 1fr; }
+      .network-card { min-height: 390px; }
+      .install-panel { grid-template-columns: 1fr; padding: 28px; }
+      .install-actions { justify-content: flex-start; }
+      .privacy-layout { grid-template-columns: 1fr; }
+      .privacy-statement { min-height: 320px; }
+      .compat-grid { grid-template-columns: 1fr; }
+      .final-cta { margin-top: 76px; padding: 56px 22px; border-radius: 22px; }
+      .footer-main { align-items: flex-start; flex-direction: column; }
+    }
+
+    @media (max-width: 380px) {
+      .container { width: min(100% - 24px, 1120px); }
+      .brand span { font-size: 15px; }
+      .button-small { padding-inline: 13px; }
+      .hero-actions .button { width: 100%; }
+      .hero-meta { display: grid; gap: 5px; }
+      .hero-meta span + span::before { display: none; }
+      .section-block { padding: 64px 0; }
+      .feature-card,
+      .privacy-panel,
+      .compat-card,
+      .network-card { padding: 22px; }
+      .install-panel { padding: 24px 20px; }
+      .install-actions .button { width: 100%; }
+      .data-row { grid-template-columns: 1fr; gap: 5px; }
+      .final-cta .button { width: 100%; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header container">
+    <nav class="nav" aria-label="Primary navigation">
+      <a class="brand" href="#top" aria-label="YeelightBar home">
+        <img src="assets/app-icon-64.png" width="64" height="64" alt="">
+        <span>YeelightBar</span>
+      </a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#setup">Setup</a>
+        <a href="#privacy">Privacy</a>
+      </div>
+      <a class="button button-primary button-small" href="https://github.com/bekircem/YeelightBar/releases/latest">Download</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero container" aria-labelledby="hero-title">
+      <p class="eyebrow">Native macOS control for your lights</p>
+      <h1 id="hero-title">Control your lights.<span class="hero-accent">Right from the menu bar.</span></h1>
+      <p class="hero-copy">Power, brightness, color, modes, flows, and sleep timers—directly over your local network. No account. No cloud. No telemetry.</p>
+      <div class="hero-actions">
+        <a class="button button-primary" href="https://github.com/bekircem/YeelightBar/releases/latest">Download for macOS</a>
+        <a class="button button-secondary" href="https://github.com/bekircem/YeelightBar">View source</a>
+      </div>
+      <p class="hero-meta" aria-label="Product details">
+        <span>Free and open source</span>
+        <span>macOS 13+</span>
+        <span>Apple Silicon &amp; Intel</span>
+      </p>
+    </section>
+
+    <div class="showcase container">
+      <picture>
+        <source type="image/webp" srcset="assets/yeelightbar-poster-960.webp 960w, assets/yeelightbar-poster-1672.webp 1672w" sizes="(max-width: 1168px) calc(100vw - 48px), 1120px">
+        <img src="assets/yeelightbar-poster.png" width="1672" height="941" alt="YeelightBar menu bar controls and the Modes and Flows library on macOS" fetchpriority="high" decoding="async">
+      </picture>
+    </div>
+
+    <section class="section-block container" id="features" aria-labelledby="features-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-label">Everything within reach</p>
+          <h2 class="section-title" id="features-title">Your lights, without the detour.</h2>
+        </div>
+        <p class="section-intro">No dashboard to keep open and no cloud service in the middle. YeelightBar puts everyday controls and carefully tuned scenes where your cursor already is.</p>
+      </div>
+
+      <div class="feature-grid">
+        <article class="feature-card" style="--feature-color: var(--amber)">
+          <div class="feature-kicker">Control · 01</div>
+          <h3>Instant controls</h3>
+          <p>Power, brightness, color temperature, RGB, and HSV controls adapt to what the selected light supports.</p>
+        </article>
+        <article class="feature-card" style="--feature-color: var(--cyan)">
+          <div class="feature-kicker">Atmosphere · 02</div>
+          <h3>Modes &amp; Flows</h3>
+          <p>Apply reusable static looks, favorite them for quick access, or build local color flows of your own.</p>
+        </article>
+        <article class="feature-card" style="--feature-color: #a08aff">
+          <div class="feature-kicker">Wind down · 03</div>
+          <h3>Sleep Timer</h3>
+          <p>Set a 1–60 minute timer with a gentle preset. It runs on the light, even after YeelightBar quits.</p>
+        </article>
+        <article class="feature-card" style="--feature-color: var(--blue)">
+          <div class="feature-kicker">Anywhere · 04</div>
+          <h3>Global shortcuts</h3>
+          <p>Toggle power, adjust brightness, or activate a favorite mode without leaving the app you are using.</p>
+        </article>
+        <article class="feature-card" style="--feature-color: #69df91">
+          <div class="feature-kicker">Trust · 05</div>
+          <h3>Private by design</h3>
+          <p>No YeelightBar account, analytics, advertising, telemetry, or project-operated cloud relay.</p>
+        </article>
+        <article class="feature-card" style="--feature-color: #e8eefc">
+          <div class="feature-kicker">At home · 06</div>
+          <h3>Native macOS</h3>
+          <p>A SwiftUI menu bar utility with light and dark appearance support, Launch at Login, and signed updates.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section-block container" id="setup" aria-labelledby="setup-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-label">Setup</p>
+          <h2 class="section-title" id="setup-title">From bulb to menu bar in three steps.</h2>
+        </div>
+        <p class="section-intro">YeelightBar discovers compatible lights on your local network, then waits for you to decide which devices to trust.</p>
+      </div>
+
+      <div class="setup-layout">
+        <ol class="steps">
+          <li class="step">
+            <div>
+              <h3>Enable LAN Control</h3>
+              <p>Open the official Yeelight mobile app and enable LAN Control for each compatible light.</p>
+            </div>
+          </li>
+          <li class="step">
+            <div>
+              <h3>Join the same trusted network</h3>
+              <p>Keep your Mac and light on the same local network, then allow Local Network access when macOS asks.</p>
+            </div>
+          </li>
+          <li class="step">
+            <div>
+              <h3>Discover, review, and add</h3>
+              <p>Open YeelightBar, run discovery, review the device, and explicitly add it. Nothing is trusted automatically.</p>
+            </div>
+          </li>
+        </ol>
+
+        <aside class="network-card" aria-label="Local connection information">
+          <div class="network-visual" aria-hidden="true">
+            <span class="network-node">LAN</span>
+          </div>
+          <h3>Direct means direct.</h3>
+          <p>Your controls travel from your Mac to your light over the local network. Manual IP connection is available when discovery is not.</p>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section-block container" id="install" aria-labelledby="install-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-label">Install</p>
+          <h2 class="section-title" id="install-title">One command. Or one drag.</h2>
+        </div>
+        <p class="section-intro">Install with Homebrew, or download the signed and notarized DMG from GitHub Releases and drag YeelightBar to Applications.</p>
+      </div>
+
+      <div class="install-shell">
+        <div class="install-panel">
+          <div>
+            <p class="terminal-label">Homebrew</p>
+            <pre><code><span class="prompt">$</span> brew install --cask bekircem/yeelightbar/yeelightbar</code></pre>
+            <p class="signed-note">Developer ID signed, Apple notarized, and ready for Gatekeeper</p>
+          </div>
+          <div class="install-actions">
+            <a class="button button-primary" href="https://github.com/bekircem/YeelightBar/releases/latest">Get the DMG</a>
+            <a class="button button-secondary" href="https://github.com/bekircem/YeelightBar#installation">Install guide</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-block container" id="privacy" aria-labelledby="privacy-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-label">Privacy &amp; security</p>
+          <h2 class="section-title" id="privacy-title">Your light should not need another cloud.</h2>
+        </div>
+        <p class="section-intro">YeelightBar keeps device information and preferences in its macOS sandbox and does not operate a server that receives your activity.</p>
+      </div>
+
+      <div class="privacy-layout">
+        <div class="privacy-panel privacy-statement">
+          <strong>No account.<br>No analytics.<br>No telemetry.</strong>
+          <p>The app connects only to lights you approve. Discovery candidates are never trusted automatically, and endpoint changes require confirmation.</p>
+        </div>
+
+        <div>
+          <div class="privacy-panel">
+            <dl class="data-list">
+              <div class="data-row">
+                <dt>Light controls</dt>
+                <dd>Travel directly over your private or local network to the selected light.</dd>
+              </div>
+              <div class="data-row">
+                <dt>Preferences</dt>
+                <dd>Stay in the app sandbox unless you explicitly export them to a location you choose.</dd>
+              </div>
+              <div class="data-row">
+                <dt>Update checks</dt>
+                <dd>Contact GitHub over HTTPS only when you choose Check for Updates. Automatic background checks are off.</dd>
+              </div>
+            </dl>
+          </div>
+          <p class="security-note"><strong>Protocol limitation:</strong> the upstream Yeelight LAN protocol is plaintext and unauthenticated. Use YeelightBar only on a network you trust.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-block container" id="compatibility" aria-labelledby="compatibility-title">
+      <div class="section-heading">
+        <div>
+          <p class="section-label">Compatibility</p>
+          <h2 class="section-title" id="compatibility-title">Built for Yeelight LAN Control.</h2>
+        </div>
+        <p class="section-intro">Compatibility depends on local protocol support, not the brand name alone. Xiaomi or Mijia devices work only when their firmware exposes Yeelight LAN Control.</p>
+      </div>
+
+      <div class="compat-grid">
+        <article class="compat-card" style="--card-dot: var(--cyan)">
+          <h3>Mac</h3>
+          <ul>
+            <li>macOS Ventura 13 or later</li>
+            <li>Apple Silicon and Intel</li>
+            <li>Local Network permission</li>
+          </ul>
+        </article>
+        <article class="compat-card" style="--card-dot: var(--amber)">
+          <h3>Lights</h3>
+          <ul>
+            <li>Wi-Fi bulbs and light strips</li>
+            <li>Ceiling, desk, and ambient lights</li>
+            <li>Yeelight LAN Control enabled</li>
+          </ul>
+        </article>
+        <article class="compat-card" style="--card-dot: #ef6f80">
+          <h3>Not supported</h3>
+          <ul>
+            <li>Cloud-only devices</li>
+            <li>BLE Mesh and Zigbee lights</li>
+            <li>Matter or HomeKit-only lights</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="final-cta container" aria-labelledby="download-title">
+      <img src="assets/app-icon-128.png" width="128" height="128" alt="" decoding="async">
+      <h2 id="download-title">Put your lights on the menu.</h2>
+      <p>Download YeelightBar for macOS and control compatible lights directly from the place that is always within reach.</p>
+      <div class="hero-actions">
+        <a class="button button-primary" href="https://github.com/bekircem/YeelightBar/releases/latest">Download for macOS</a>
+        <a class="button button-secondary" href="https://github.com/bekircem/YeelightBar">View on GitHub</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer container">
+    <div class="footer-main">
+      <a class="brand" href="#top" aria-label="YeelightBar — back to the top">
+        <img src="assets/app-icon-64.png" width="64" height="64" alt="" loading="lazy" decoding="async">
+        <span>YeelightBar</span>
+      </a>
+      <nav class="footer-links" aria-label="Footer navigation">
+        <a href="https://github.com/bekircem/YeelightBar">GitHub</a>
+        <a href="https://github.com/bekircem/YeelightBar/blob/main/PRIVACY.md">Privacy</a>
+        <a href="https://github.com/bekircem/YeelightBar/blob/main/SECURITY.md">Security</a>
+        <a href="https://github.com/bekircem/YeelightBar/blob/main/LICENSE">GPL-3.0</a>
+        <a href="https://github.com/bekircem/YeelightBar/issues">Report a bug</a>
+      </nav>
+    </div>
+    <p class="footer-note">YeelightBar is an independent open-source project and is not affiliated with, endorsed by, or sponsored by Yeelight. Yeelight and other marks belong to their respective owners.</p>
+  </footer>
+</body>
+</html>
