@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/bekircem/YeelightBar/releases/latest"><img src="https://img.shields.io/github/v/release/bekircem/YeelightBar?display_name=tag&amp;sort=semver" alt="Latest release"></a>
   <a href="https://github.com/bekircem/YeelightBar/actions/workflows/ci.yml"><img src="https://github.com/bekircem/YeelightBar/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
-  <img src="https://img.shields.io/badge/macOS-13%2B-000000?logo=apple&amp;logoColor=white" alt="macOS 13 or later">
+  <img src="https://img.shields.io/badge/macOS-26%2B-000000?logo=apple&amp;logoColor=white" alt="macOS 26 Tahoe or later">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/bekircem/YeelightBar" alt="GPL-3.0 license"></a>
 </p>
 
@@ -26,7 +26,7 @@
 
 <p align="center">
   <a href="Marketing/YeelightBar-Reddit-Launch-Poster.png">
-    <img src="Marketing/YeelightBar-Reddit-Launch-Poster.png" alt="YeelightBar macOS menu bar controller and Modes &amp; Flows library">
+    <img src="Marketing/YeelightBar-Reddit-Launch-Poster.png" alt="YeelightBar Warm Native Glass menu bar controller on macOS">
   </a>
 </p>
 
@@ -85,7 +85,7 @@ Stable DMGs are signed with Developer ID, notarized by Apple, stapled, and publi
 
 | Requirement | Details |
 | --- | --- |
-| macOS | Ventura 13 or later |
+| macOS | Tahoe 26 or later |
 | Architecture | Apple Silicon and Intel |
 | Lights | Yeelight Wi-Fi bulbs, strips, ceiling, desk, and ambient lights that expose Yeelight LAN Control |
 | Network | The Mac and light must be reachable on the same private/local network |

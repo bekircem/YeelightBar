@@ -9,7 +9,7 @@ cask "yeelightbar" do
 
   auto_updates true
 
-  depends_on macos: :ventura
+  depends_on macos: :tahoe
 
   app "YeelightBar.app"
 

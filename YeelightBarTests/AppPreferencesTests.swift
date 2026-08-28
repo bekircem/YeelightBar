@@ -43,7 +43,7 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertEqual(preferences.reconnectInterval, 2)
         XCTAssertEqual(preferences.brightnessDebounceMilliseconds, 180)
         XCTAssertEqual(preferences.colorDebounceMilliseconds, 180)
-        XCTAssertEqual(preferences.popoverWidth, 340)
+        XCTAssertEqual(preferences.popoverWidth, YeelightDesignTokens.defaultPopoverWidth)
         XCTAssertEqual(preferences.controlDisplayMode, .detailed)
         XCTAssertTrue(preferences.showColorControl)
         XCTAssertEqual(preferences.customPresets, [])
@@ -53,6 +53,13 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertEqual(preferences.keyboardShortcuts, ConfiguredShortcut.defaultSet)
         XCTAssertEqual(preferences.presetShortcuts, [])
         XCTAssertEqual(preferences.shortcutBrightnessStep, 10)
+    }
+
+    func testPopoverWidthUsesWarmGlassDefaults() {
+        XCTAssertEqual(YeelightDesignTokens.defaultPopoverWidth, 400)
+        XCTAssertEqual(AppPreferences.defaults.popoverWidth, 400)
+        XCTAssertEqual(YeelightDesignTokens.minimumPopoverWidth, 360)
+        XCTAssertEqual(YeelightDesignTokens.maximumPopoverWidth, 520)
     }
 
     func testSettingsSettersClampAndPersistValues() {
@@ -77,13 +84,29 @@ final class AppPreferencesTests: XCTestCase {
         XCTAssertEqual(preferences.reconnectInterval, 60)
         XCTAssertEqual(preferences.brightnessDebounceMilliseconds, 30)
         XCTAssertEqual(preferences.colorDebounceMilliseconds, 1000)
-        XCTAssertEqual(preferences.popoverWidth, 520)
+        XCTAssertEqual(preferences.popoverWidth, YeelightDesignTokens.maximumPopoverWidth)
         XCTAssertEqual(preferences.defaultManualPort, 12345)
         XCTAssertEqual(preferences.menuBarIconStyle, .filled)
         XCTAssertEqual(preferences.controlDisplayMode, .compact)
         XCTAssertFalse(preferences.showColorControl)
         XCTAssertFalse(preferences.shortcutsEnabled)
         XCTAssertEqual(preferences.shortcutBrightnessStep, 25)
+    }
+
+    func testPopoverWidthClampsAtBothBoundsAndSanitizesLegacyValues() throws {
+        let store = makeIsolatedStore()
+        let state = AppState(store: store)
+
+        state.setPopoverWidth(120)
+        XCTAssertEqual(state.popoverWidth, YeelightDesignTokens.minimumPopoverWidth)
+        XCTAssertEqual(store.load().popoverWidth, YeelightDesignTokens.minimumPopoverWidth)
+
+        var legacyPreferences = AppPreferences.defaults
+        legacyPreferences.popoverWidth = 300
+        try state.applyImportedPreferences(JSONEncoder().encode(legacyPreferences))
+
+        XCTAssertEqual(state.popoverWidth, YeelightDesignTokens.minimumPopoverWidth)
+        XCTAssertEqual(store.load().popoverWidth, YeelightDesignTokens.minimumPopoverWidth)
     }
 
     func testResetPreferencesClearsStoredDevices() {
@@ -392,10 +415,14 @@ final class AppPreferencesTests: XCTestCase {
         return DeviceStore(defaults: defaults)
     }
 
-    private func makeDevice(state: DeviceState) -> YeelightDevice {
+    private func makeDevice(
+        id: String = "test-device",
+        name: String = "Desk Lamp",
+        state: DeviceState
+    ) -> YeelightDevice {
         YeelightDevice(
-            id: "test-device",
-            name: "Desk Lamp",
+            id: id,
+            name: name,
             model: "color",
             host: "192.168.1.42",
             port: 55443,
@@ -404,6 +431,7 @@ final class AppPreferencesTests: XCTestCase {
             lastSeen: Date(timeIntervalSince1970: 0)
         )
     }
+
 }
 
 @MainActor

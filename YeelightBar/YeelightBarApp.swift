@@ -36,6 +36,14 @@ private struct YeelightBarApp: App {
             Image(systemName: state.menuBarSymbolName)
         }
         .menuBarExtraStyle(.window)
+
+        Settings {
+            SettingsView()
+                .environmentObject(state)
+                .frame(minWidth: 860, minHeight: 560)
+        }
+        .defaultSize(width: 980, height: 680)
+        .windowResizability(.contentMinSize)
     }
 }
 

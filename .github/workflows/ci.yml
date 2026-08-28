@@ -30,7 +30,9 @@ jobs:
         run: xcodebuild -version
 
       - name: Validate metadata
-        run: bash Scripts/validate-plists.sh
+        run: |
+          bash Scripts/validate-plists.sh
+          bash Scripts/validate-compatibility-metadata.sh
 
       - name: Scan committed source for secrets
         run: bash Scripts/check-secrets.sh

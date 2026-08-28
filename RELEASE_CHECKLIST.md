@@ -16,7 +16,7 @@ Use a fresh copy of this checklist for each release. Replace `<version>` with th
 ## Signed artifact
 
 - [ ] Produce the DMG through the protected `release` environment.
-- [ ] Smoke-test the notarized DMG on a clean macOS 13 account and the current macOS release, on Apple Silicon and Intel.
+- [ ] Smoke-test the notarized DMG on a clean macOS 26 Tahoe account and the current macOS release, on Apple Silicon and Intel.
 - [ ] Test two real Yeelight capability profiles, device trust, endpoint changes, offline/reconnect, sleep/wake, and network changes.
 - [ ] Test settings import/export and Launch at Login in the signed and sandboxed build.
 - [ ] Test minimum/default/wide Settings layouts, light/dark appearance, keyboard navigation, and VoiceOver.

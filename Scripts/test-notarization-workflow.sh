@@ -132,6 +132,7 @@ test "$invalid_id_exit" -eq 64
 release_workflow="$root_dir/.github/workflows/release.yml"
 appcast_script="$root_dir/Scripts/generate-sparkle-appcast.sh"
 test -x "$appcast_script"
+grep -Fq '<sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>' "$appcast_script"
 if grep -Fq 'prerelease=()' "$release_workflow" || grep -Fq 'prerelease[@]' "$release_workflow"; then
   echo 'Release workflow must not expand an empty prerelease array under Bash set -u.' >&2
   exit 1
@@ -149,6 +150,7 @@ grep -Fq 'bash Scripts/generate-sparkle-appcast.sh' "$release_workflow"
 grep -Fq 'assets+=("$DIST_PATH/appcast.xml")' "$release_workflow"
 grep -Fq 'required_assets+=(appcast.xml)' "$release_workflow"
 grep -Fq 'auto_updates true' "$root_dir/packaging/homebrew/yeelightbar.rb.template"
+grep -Fq 'depends_on macos: :tahoe' "$root_dir/packaging/homebrew/yeelightbar.rb.template"
 
 release_create_line=$(grep -nF 'gh release create "$RELEASE_TAG" --verify-tag --generate-notes --draft' "$release_workflow" | tail -n1 | cut -d: -f1)
 release_upload_line=$(grep -nF 'gh release upload "$RELEASE_TAG" "${assets[@]}"' "$release_workflow" | tail -n1 | cut -d: -f1)

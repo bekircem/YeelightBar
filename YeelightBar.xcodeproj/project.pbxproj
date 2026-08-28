@@ -23,7 +23,7 @@
 		A10000000000000000001014 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002014 /* SettingsView.swift */; };
 		A10000000000000000001015 /* YeelightBarApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002015 /* YeelightBarApp.swift */; };
 		A10000000000000000001016 /* ColorPanelCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002018 /* ColorPanelCoordinator.swift */; };
-		A10000000000000000001017 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002019 /* SettingsWindowController.swift */; };
+		A10000000000000000001017 /* SleepTimerWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002019 /* SleepTimerWindowController.swift */; };
 		A10000000000000000001018 /* LightPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002020 /* LightPreset.swift */; };
 		A10000000000000000001031 /* ModesSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002033 /* ModesSettingsView.swift */; };
 		A10000000000000000001028 /* KeyboardShortcut.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002028 /* KeyboardShortcut.swift */; };
@@ -35,6 +35,17 @@
 		A10000000000000000001035 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A1000000000000000000A002 /* Sparkle */; };
 		A10000000000000000001036 /* ThirdPartyNotices.txt in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002037 /* ThirdPartyNotices.txt */; };
 		A10000000000000000001037 /* SleepTimerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002038 /* SleepTimerSheet.swift */; };
+		A10000000000000000001038 /* YeelightDesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002039 /* YeelightDesignSystem.swift */; };
+		A10000000000000000001039 /* ColorWheelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002040 /* ColorWheelView.swift */; };
+		A10000000000000000001040 /* MenuBarDeviceCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002041 /* MenuBarDeviceCard.swift */; };
+		A10000000000000000001041 /* MenuBarQuickScenes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002042 /* MenuBarQuickScenes.swift */; };
+		A10000000000000000001042 /* MenuBarLightControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002043 /* MenuBarLightControls.swift */; };
+		A10000000000000000001043 /* ModeCreatorViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002044 /* ModeCreatorViews.swift */; };
+		A10000000000000000001044 /* SettingsPanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002045 /* SettingsPanels.swift */; };
+		A10000000000000000001045 /* SettingsComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002046 /* SettingsComponents.swift */; };
+		A10000000000000000001046 /* SleepTimerComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002047 /* SleepTimerComponents.swift */; };
+		A10000000000000000001047 /* ModePresetDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002048 /* ModePresetDetailView.swift */; };
+		A10000000000000000001048 /* MenuBarPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002049 /* MenuBarPresentationTests.swift */; };
 		A10000000000000000001021 /* DiscoveryResponseParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002021 /* DiscoveryResponseParserTests.swift */; };
 		A10000000000000000001022 /* YeelightCommandTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002022 /* YeelightCommandTests.swift */; };
 		A10000000000000000001023 /* ColorRGBTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000002023 /* ColorRGBTests.swift */; };
@@ -73,7 +84,7 @@
 		A10000000000000000002016 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A10000000000000000002017 /* YeelightBar.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = YeelightBar.entitlements; sourceTree = "<group>"; };
 		A10000000000000000002018 /* ColorPanelCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorPanelCoordinator.swift; sourceTree = "<group>"; };
-		A10000000000000000002019 /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
+		A10000000000000000002019 /* SleepTimerWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepTimerWindowController.swift; sourceTree = "<group>"; };
 		A10000000000000000002020 /* LightPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightPreset.swift; sourceTree = "<group>"; };
 		A10000000000000000002033 /* ModesSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModesSettingsView.swift; sourceTree = "<group>"; };
 		A10000000000000000002028 /* KeyboardShortcut.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardShortcut.swift; sourceTree = "<group>"; };
@@ -93,6 +104,17 @@
 		A10000000000000000002036 /* UpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateController.swift; sourceTree = "<group>"; };
 		A10000000000000000002037 /* ThirdPartyNotices.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = Resources/ThirdPartyNotices.txt; sourceTree = "<group>"; };
 		A10000000000000000002038 /* SleepTimerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepTimerSheet.swift; sourceTree = "<group>"; };
+		A10000000000000000002039 /* YeelightDesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YeelightDesignSystem.swift; sourceTree = "<group>"; };
+		A10000000000000000002040 /* ColorWheelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorWheelView.swift; sourceTree = "<group>"; };
+		A10000000000000000002041 /* MenuBarDeviceCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarDeviceCard.swift; sourceTree = "<group>"; };
+		A10000000000000000002042 /* MenuBarQuickScenes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarQuickScenes.swift; sourceTree = "<group>"; };
+		A10000000000000000002043 /* MenuBarLightControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarLightControls.swift; sourceTree = "<group>"; };
+		A10000000000000000002044 /* ModeCreatorViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModeCreatorViews.swift; sourceTree = "<group>"; };
+		A10000000000000000002045 /* SettingsPanels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPanels.swift; sourceTree = "<group>"; };
+		A10000000000000000002046 /* SettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsComponents.swift; sourceTree = "<group>"; };
+		A10000000000000000002047 /* SleepTimerComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepTimerComponents.swift; sourceTree = "<group>"; };
+		A10000000000000000002048 /* ModePresetDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModePresetDetailView.swift; sourceTree = "<group>"; };
+		A10000000000000000002049 /* MenuBarPresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPresentationTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -181,7 +203,7 @@
 				A10000000000000000002018 /* ColorPanelCoordinator.swift */,
 				A10000000000000000002011 /* Comparable+Clamp.swift */,
 				A10000000000000000002029 /* GlobalHotKeyManager.swift */,
-				A10000000000000000002019 /* SettingsWindowController.swift */,
+				A10000000000000000002019 /* SleepTimerWindowController.swift */,
 				A10000000000000000002036 /* UpdateController.swift */,
 			);
 			path = Utilities;
@@ -206,6 +228,7 @@
 				A10000000000000000002026 /* AppPreferencesTests.swift */,
 				A10000000000000000002027 /* LightPresetTests.swift */,
 				A10000000000000000002030 /* KeyboardShortcutTests.swift */,
+				A10000000000000000002049 /* MenuBarPresentationTests.swift */,
 			);
 			path = YeelightBarTests;
 			sourceTree = "<group>";
@@ -222,9 +245,19 @@
 		A10000000000000000005009 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				A10000000000000000002039 /* YeelightDesignSystem.swift */,
 				A10000000000000000002013 /* MenuBarContentView.swift */,
+				A10000000000000000002041 /* MenuBarDeviceCard.swift */,
+				A10000000000000000002042 /* MenuBarQuickScenes.swift */,
+				A10000000000000000002043 /* MenuBarLightControls.swift */,
+				A10000000000000000002040 /* ColorWheelView.swift */,
 				A10000000000000000002033 /* ModesSettingsView.swift */,
+				A10000000000000000002048 /* ModePresetDetailView.swift */,
+				A10000000000000000002044 /* ModeCreatorViews.swift */,
+				A10000000000000000002047 /* SleepTimerComponents.swift */,
 				A10000000000000000002038 /* SleepTimerSheet.swift */,
+				A10000000000000000002046 /* SettingsComponents.swift */,
+				A10000000000000000002045 /* SettingsPanels.swift */,
 				A10000000000000000002014 /* SettingsView.swift */,
 			);
 			path = Views;
@@ -349,15 +382,25 @@
 				A10000000000000000001010 /* Color+RGB.swift in Sources */,
 				A10000000000000000001016 /* ColorPanelCoordinator.swift in Sources */,
 				A10000000000000000001011 /* Comparable+Clamp.swift in Sources */,
-				A10000000000000000001017 /* SettingsWindowController.swift in Sources */,
+				A10000000000000000001017 /* SleepTimerWindowController.swift in Sources */,
 				A10000000000000000001034 /* UpdateController.swift in Sources */,
 				A10000000000000000001018 /* LightPreset.swift in Sources */,
 				A10000000000000000001028 /* KeyboardShortcut.swift in Sources */,
 				A10000000000000000001029 /* GlobalHotKeyManager.swift in Sources */,
 				A10000000000000000001012 /* AppState.swift in Sources */,
 				A10000000000000000001013 /* MenuBarContentView.swift in Sources */,
+				A10000000000000000001038 /* YeelightDesignSystem.swift in Sources */,
+				A10000000000000000001039 /* ColorWheelView.swift in Sources */,
+				A10000000000000000001040 /* MenuBarDeviceCard.swift in Sources */,
+				A10000000000000000001041 /* MenuBarQuickScenes.swift in Sources */,
+				A10000000000000000001042 /* MenuBarLightControls.swift in Sources */,
 				A10000000000000000001031 /* ModesSettingsView.swift in Sources */,
+				A10000000000000000001047 /* ModePresetDetailView.swift in Sources */,
+				A10000000000000000001043 /* ModeCreatorViews.swift in Sources */,
+				A10000000000000000001046 /* SleepTimerComponents.swift in Sources */,
 				A10000000000000000001037 /* SleepTimerSheet.swift in Sources */,
+				A10000000000000000001045 /* SettingsComponents.swift in Sources */,
+				A10000000000000000001044 /* SettingsPanels.swift in Sources */,
 				A10000000000000000001014 /* SettingsView.swift in Sources */,
 				A10000000000000000001015 /* YeelightBarApp.swift in Sources */,
 			);
@@ -375,6 +418,7 @@
 				A10000000000000000001026 /* AppPreferencesTests.swift in Sources */,
 				A10000000000000000001027 /* LightPresetTests.swift in Sources */,
 				A10000000000000000001030 /* KeyboardShortcutTests.swift in Sources */,
+				A10000000000000000001048 /* MenuBarPresentationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -458,7 +502,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -512,7 +556,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
@@ -528,7 +572,7 @@
 				CODE_SIGN_ENTITLEMENTS = YeelightBar/YeelightBar.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				ENABLE_APP_INTENTS_METADATA_EXTRACTION = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -539,8 +583,8 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.2.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.bekircem.yeelightbar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -557,7 +601,7 @@
 				CODE_SIGN_ENTITLEMENTS = YeelightBar/YeelightBar.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				ENABLE_APP_INTENTS_METADATA_EXTRACTION = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -568,8 +612,8 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.2.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.bekircem.yeelightbar;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -592,7 +636,7 @@
 					"@loader_path/../Frameworks",
 					"$(BUILT_PRODUCTS_DIR)/YeelightBar.app/Contents/MacOS",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				OTHER_LDFLAGS = "$(BUILT_PRODUCTS_DIR)/YeelightBar.app/Contents/MacOS/YeelightBar.debug.dylib";
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.bekircem.yeelightbar.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -616,7 +660,7 @@
 					"@loader_path/../Frameworks",
 					"$(BUILT_PRODUCTS_DIR)/YeelightBar.app/Contents/MacOS",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				OTHER_LDFLAGS = "$(BUILT_PRODUCTS_DIR)/YeelightBar.app/Contents/MacOS/YeelightBar.debug.dylib";
 				PRODUCT_BUNDLE_IDENTIFIER = io.github.bekircem.yeelightbar.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
