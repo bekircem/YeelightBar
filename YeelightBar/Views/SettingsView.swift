@@ -18,9 +18,7 @@ struct SettingsView: View {
         Binding(
             get: { selectedPanel },
             set: { panel in
-                if let panel {
-                    selectedPanelRawValue = panel.rawValue
-                }
+                selectedPanelRawValue = (panel ?? .general).rawValue
             }
         )
     }
@@ -33,6 +31,9 @@ struct SettingsView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 860, minHeight: 560)
+        .onAppear {
+            NSApp.activate(ignoringOtherApps: true)
+        }
         .alert("Forget all saved devices?", isPresented: $confirmForgetDevices) {
             Button("Forget Devices", role: .destructive) {
                 state.forgetDevices()
@@ -56,12 +57,14 @@ struct SettingsView: View {
             ForEach(SettingsPanel.allCases) { panel in
                 Label(panel.title, systemImage: panel.systemImage)
                     .lineLimit(1)
-                    .tag(Optional(panel))
+                    .tag(panel)
+                    .accessibilityIdentifier("settings.sidebar.\(panel.rawValue)")
             }
         }
         .listStyle(.sidebar)
         .navigationTitle("Settings")
         .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 250)
+        .toolbar(removing: .sidebarToggle)
     }
 
     @ViewBuilder
@@ -73,6 +76,7 @@ struct SettingsView: View {
             }
             .padding(24)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .accessibilityIdentifier("settings.detail.\(selectedPanel.rawValue)")
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
@@ -83,6 +87,7 @@ struct SettingsView: View {
                 .frame(maxWidth: 700, alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             }
+            .accessibilityIdentifier("settings.detail.\(selectedPanel.rawValue)")
         }
     }
 
