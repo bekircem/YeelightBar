@@ -283,7 +283,7 @@ final class AppState: ObservableObject {
     @Published var reconnectInterval = 2.0
     @Published var brightnessDebounceMilliseconds = 180
     @Published var colorDebounceMilliseconds = 180
-    @Published var popoverWidth = 340.0
+    @Published var popoverWidth = YeelightDesignTokens.defaultPopoverWidth
     @Published var controlDisplayMode: ControlDisplayMode = .detailed
     @Published var showColorControl = true
     @Published var debugLoggingEnabled = false
@@ -354,7 +354,6 @@ final class AppState: ObservableObject {
     private var isConnectionReady = false
     private var isRefreshingState = false
     private var started = false
-    private lazy var settingsWindowController = SettingsWindowController(state: self)
     private lazy var sleepTimerWindowController = SleepTimerWindowController(state: self)
 
     private var isUserColorEditingActive: Bool {
@@ -1150,7 +1149,9 @@ final class AppState: ObservableObject {
     }
 
     func setPopoverWidth(_ width: Double) {
-        popoverWidth = width.clamped(to: 300...520)
+        popoverWidth = width.clamped(
+            to: YeelightDesignTokens.minimumPopoverWidth...YeelightDesignTokens.maximumPopoverWidth
+        )
         preferences.popoverWidth = popoverWidth
         persist()
     }
@@ -1391,10 +1392,6 @@ final class AppState: ObservableObject {
         persist()
         updateControlsFromSelectedDevice()
         connectToSelectedDevice()
-    }
-
-    func showSettings() {
-        settingsWindowController.show()
     }
 
     func showSleepTimer() {
@@ -3130,7 +3127,9 @@ final class AppState: ObservableObject {
             reconnectInterval: preferences.reconnectInterval.clamped(to: 1...60),
             brightnessDebounceMilliseconds: preferences.brightnessDebounceMilliseconds.clamped(to: 30...1000),
             colorDebounceMilliseconds: preferences.colorDebounceMilliseconds.clamped(to: 30...1000),
-            popoverWidth: preferences.popoverWidth.clamped(to: 300...520),
+            popoverWidth: preferences.popoverWidth.clamped(
+                to: YeelightDesignTokens.minimumPopoverWidth...YeelightDesignTokens.maximumPopoverWidth
+            ),
             controlDisplayMode: preferences.controlDisplayMode,
             showColorControl: preferences.showColorControl,
             debugLoggingEnabled: preferences.debugLoggingEnabled,

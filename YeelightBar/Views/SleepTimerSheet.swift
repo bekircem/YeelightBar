@@ -16,101 +16,30 @@ struct SleepTimerSheet: View {
     @FocusState private var customDurationIsFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: YeelightDesignTokens.spaceL) {
             header
 
             if state.selectedDeviceDelayOffMinutes > 0 {
-                activeTimerCard
+                SleepTimerActiveStatusCard(
+                    title: state.canControlSelectedDevice ? "Timer Active" : "Last Known Timer",
+                    detail: activeTimerDetail,
+                    accessibilityLabel: activeTimerAccessibilityLabel,
+                    canCancel: canCancel,
+                    unavailableReason: unavailableReason,
+                    onCancel: cancelTimer
+                )
             }
 
-            Form {
-                Section("Timer") {
-                    Picker("Duration", selection: $duration) {
-                        ForEach(SleepTimerDuration.allCases) { option in
-                            Text(option.title).tag(option)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-
-                    if duration == .custom {
-                        HStack {
-                            Text("Custom duration")
-
-                            Spacer()
-
-                            TextField("Minutes", value: $customMinutes, format: .number)
-                                .textFieldStyle(.roundedBorder)
-                                .multilineTextAlignment(.trailing)
-                                .monospacedDigit()
-                                .frame(width: 58)
-                                .focused($customDurationIsFocused)
-
-                            Stepper(
-                                "Minutes",
-                                onIncrement: {
-                                    customMinutes = (customMinutes + 1).clamped(to: 1...60)
-                                },
-                                onDecrement: {
-                                    customMinutes = (customMinutes - 1).clamped(to: 1...60)
-                                }
-                            )
-                                .labelsHidden()
-
-                            Text("min")
-                                .foregroundStyle(.secondary)
-                        }
-
-                        if !customDurationIsValid {
-                            Label("Enter a duration from 1 to 60 minutes.", systemImage: "exclamationmark.circle")
-                                .font(.caption)
-                                .foregroundStyle(.red)
-                                .accessibilityLabel("Invalid duration. Enter a value from 1 to 60 minutes.")
-                        }
-                    }
-                }
-
-                Section("Until Timer Ends") {
-                    Picker("Appearance", selection: $appearance) {
-                        Text("Keep Current")
-                            .tag(SleepTimerAppearanceChoice.current)
-
-                        Text("Warm Dim")
-                            .tag(SleepTimerAppearanceChoice.warmDim)
-                            .disabled(!supportsWarmDim)
-                            .accessibilityHint(supportsWarmDim ? "" : "Unavailable because this light cannot set a warm dim appearance.")
-
-                        Text("Soft Rose")
-                            .tag(SleepTimerAppearanceChoice.softRose)
-                            .disabled(!supportsSoftRose)
-                            .accessibilityHint(supportsSoftRose ? "" : "Unavailable because this light cannot set color.")
-
-                        Text("Choose Mode…")
-                            .tag(SleepTimerAppearanceChoice.preset)
-                            .disabled(compatiblePresets.isEmpty)
-                            .accessibilityHint(compatiblePresets.isEmpty ? "No compatible static modes are available for this light." : "")
-                    }
-
-                    if appearance == .preset {
-                        Picker("Mode", selection: $selectedPresetID) {
-                            ForEach(compatiblePresets) { preset in
-                                Text(preset.title).tag(preset.id)
-                            }
-                        }
-                        .disabled(compatiblePresets.isEmpty)
-                    }
-
-                    appearancePreview
-                }
-            }
-            .formStyle(.grouped)
+            timerSection
+            appearanceSection
 
             if let notice {
-                Label(notice.message, systemImage: notice.symbolName)
-                    .font(.caption)
-                    .foregroundStyle(notice.color)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityLabel(notice.accessibilityLabel)
+                SleepTimerNoticeBanner(
+                    message: notice.message,
+                    systemImage: notice.symbolName,
+                    color: notice.color,
+                    accessibilityLabel: notice.accessibilityLabel
+                )
             } else if state.selectedDeviceIsFlowing {
                 Label(flowNoticeText, systemImage: "waveform")
                     .font(.caption)
@@ -120,22 +49,27 @@ struct SleepTimerSheet: View {
 
             footer
         }
-        .padding(20)
-        .frame(width: 440, height: state.selectedDeviceDelayOffMinutes > 0 ? 400 : 370)
+        .padding(YeelightDesignTokens.spaceXL)
+        .frame(
+            width: YeelightDesignTokens.sleepTimerWidth,
+            height: state.selectedDeviceDelayOffMinutes > 0
+                ? YeelightDesignTokens.activeSleepTimerHeight
+                : YeelightDesignTokens.sleepTimerHeight
+        )
         .onAppear(perform: prepareInitialValues)
-        .onChange(of: appearance) { _ in
+        .onChange(of: appearance) {
             notice = nil
         }
-        .onChange(of: duration) { option in
+        .onChange(of: duration) { _, option in
             notice = nil
             if option == .custom {
                 customDurationIsFocused = true
             }
         }
-        .onChange(of: customMinutes) { _ in
+        .onChange(of: customMinutes) {
             notice = nil
         }
-        .onChange(of: state.selectedDeviceID) { selectedDeviceID in
+        .onChange(of: state.selectedDeviceID) { _, selectedDeviceID in
             if selectedDeviceID != deviceID {
                 onDismiss()
             }
@@ -143,64 +77,96 @@ struct SleepTimerSheet: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Sleep Timer")
-                .font(.title2.weight(.semibold))
+        UtilitySheetHeader(
+            title: "Sleep Timer",
+            subtitle: "Turn off \(deviceName) after a delay. The timer runs on the light, even if YeelightBar quits.",
+            systemImage: "moon.zzz.fill"
+        )
+        .help("Turn off \(deviceName) after a delay. The timer runs on the light, even if YeelightBar quits.")
+    }
 
-            Text("Turn off \(deviceName) after a delay. The timer runs on the light, even if YeelightBar quits.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-                .help("Turn off \(deviceName) after a delay. The timer runs on the light, even if YeelightBar quits.")
+    private var timerSection: some View {
+        GlassSection("Timer") {
+            Picker("Duration", selection: $duration) {
+                ForEach(SleepTimerDuration.allCases) { option in
+                    Text(option.title).tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            if duration == .custom {
+                HStack {
+                    Text("Custom duration")
+
+                    Spacer()
+
+                    TextField("Minutes", value: $customMinutes, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.trailing)
+                        .monospacedDigit()
+                        .frame(width: 58)
+                        .focused($customDurationIsFocused)
+
+                    Stepper(
+                        "Minutes",
+                        onIncrement: { customMinutes = (customMinutes + 1).clamped(to: 1...60) },
+                        onDecrement: { customMinutes = (customMinutes - 1).clamped(to: 1...60) }
+                    )
+                    .labelsHidden()
+
+                    Text("min")
+                        .foregroundStyle(.secondary)
+                }
+
+                if !customDurationIsValid {
+                    Label("Enter a duration from 1 to 60 minutes.", systemImage: "exclamationmark.circle")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .accessibilityLabel("Invalid duration. Enter a value from 1 to 60 minutes.")
+                }
+            }
         }
     }
 
-    private var activeTimerCard: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "moon.zzz.fill")
-                .foregroundStyle(.indigo)
-                .accessibilityHidden(true)
+    private var appearanceSection: some View {
+        GlassSection("Until Timer Ends", style: .tinted(appearanceAccentColor)) {
+            Picker("Appearance", selection: $appearance) {
+                Text("Keep Current")
+                    .tag(SleepTimerAppearanceChoice.current)
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text(state.canControlSelectedDevice ? "Timer Active" : "Last Known Timer")
-                    .font(.callout.weight(.medium))
-                Text(activeTimerDetail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text("Warm Dim")
+                    .tag(SleepTimerAppearanceChoice.warmDim)
+                    .disabled(!supportsWarmDim)
+                    .accessibilityHint(supportsWarmDim ? "" : "Unavailable because this light cannot set a warm dim appearance.")
+
+                Text("Soft Rose")
+                    .tag(SleepTimerAppearanceChoice.softRose)
+                    .disabled(!supportsSoftRose)
+                    .accessibilityHint(supportsSoftRose ? "" : "Unavailable because this light cannot set color.")
+
+                Text("Choose Mode…")
+                    .tag(SleepTimerAppearanceChoice.preset)
+                    .disabled(compatiblePresets.isEmpty)
+                    .accessibilityHint(compatiblePresets.isEmpty ? "No compatible static mode is available for this light." : "")
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(activeTimerAccessibilityLabel)
 
-            Spacer()
-
-            Button("Cancel Timer") {
-                cancelTimer()
+            if appearance == .preset {
+                Picker("Mode", selection: $selectedPresetID) {
+                    ForEach(compatiblePresets) { preset in
+                        Text(preset.title).tag(preset.id)
+                    }
+                }
+                .disabled(compatiblePresets.isEmpty)
             }
-            .controlSize(.small)
-            .disabled(!canCancel)
-            .help(canCancel ? "Cancel the selected light's sleep timer" : unavailableReason)
+
+            SleepTimerAppearancePreview(
+                title: appearanceTitle,
+                summary: appearanceSummary
+            ) {
+                appearanceIcon
+            }
         }
-        .padding(10)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-
-    private var appearancePreview: some View {
-        HStack(spacing: 10) {
-            appearanceIcon
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(appearanceTitle)
-                    .font(.callout.weight(.medium))
-                Text(appearanceSummary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-
-            Spacer()
-        }
-        .padding(.vertical, 2)
-        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder
@@ -266,18 +232,24 @@ struct SleepTimerSheet: View {
 
             Spacer()
 
-            Button("Cancel", role: .cancel) {
-                onDismiss()
-            }
-            .keyboardShortcut(.cancelAction)
-            .disabled(isSubmitting)
+            GlassEffectContainer(spacing: YeelightDesignTokens.spaceS) {
+                HStack(spacing: YeelightDesignTokens.spaceS) {
+                    Button("Cancel", role: .cancel) {
+                        onDismiss()
+                    }
+                    .buttonStyle(.glass)
+                    .keyboardShortcut(.cancelAction)
+                    .disabled(isSubmitting)
 
-            Button(state.selectedDeviceDelayOffMinutes > 0 ? "Replace Timer" : "Start Timer") {
-                startTimer()
+                    Button(state.selectedDeviceDelayOffMinutes > 0 ? "Replace Timer" : "Start Timer") {
+                        startTimer()
+                    }
+                    .yeelightPrimaryButtonStyle()
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!canStart)
+                    .help(canStart ? "Start the sleep timer" : unavailableReason)
+                }
             }
-            .keyboardShortcut(.defaultAction)
-            .disabled(!canStart)
-            .help(canStart ? "Start the sleep timer" : unavailableReason)
         }
     }
 
@@ -286,6 +258,28 @@ struct SleepTimerSheet: View {
             return "Turns off in about \(state.selectedDeviceDelayOffMinutes) min"
         }
         return "About \(state.selectedDeviceDelayOffMinutes) min when last connected"
+    }
+
+    private var appearanceAccentColor: Color {
+        switch appearance {
+        case .current:
+            if let device = state.selectedDevice {
+                return DeviceCardSnapshot(
+                    device: device,
+                    selectedDeviceID: state.selectedDeviceID
+                ).ambientColor
+            }
+            return YeelightDesignTokens.accent
+        case .warmDim:
+            return LightAppearanceColorResolver.temperatureColor(
+                kelvin: SleepTimerAppearance.warmDimTemperature
+            )
+        case .softRose:
+            return Color(yeelightRGB: SleepTimerAppearance.softRoseRGB)
+        case .preset:
+            return selectedPreset?.swatchRGB.map { Color(yeelightRGB: $0) }
+                ?? YeelightDesignTokens.accent
+        }
     }
 
     private var flowNoticeText: String {
@@ -489,84 +483,5 @@ struct SleepTimerSheet: View {
                 .priority: NSAccessibilityPriorityLevel.high.rawValue
             ]
         )
-    }
-}
-
-private enum SleepTimerDuration: String, CaseIterable, Identifiable {
-    case minutes15
-    case minutes30
-    case minutes45
-    case minutes60
-    case custom
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .minutes15: return "15 min"
-        case .minutes30: return "30 min"
-        case .minutes45: return "45 min"
-        case .minutes60: return "1 hr"
-        case .custom: return "Custom"
-        }
-    }
-
-    var minutes: Int? {
-        switch self {
-        case .minutes15: return 15
-        case .minutes30: return 30
-        case .minutes45: return 45
-        case .minutes60: return 60
-        case .custom: return nil
-        }
-    }
-
-    init?(minutes: Int) {
-        switch minutes {
-        case 15: self = .minutes15
-        case 30: self = .minutes30
-        case 45: self = .minutes45
-        case 60: self = .minutes60
-        default: return nil
-        }
-    }
-}
-
-private enum SleepTimerAppearanceChoice: String, Hashable {
-    case current
-    case warmDim
-    case softRose
-    case preset
-}
-
-private enum SleepTimerNotice {
-    case warning(String)
-    case error(String)
-
-    var message: String {
-        switch self {
-        case .warning(let message), .error(let message): return message
-        }
-    }
-
-    var symbolName: String {
-        switch self {
-        case .warning: return "exclamationmark.triangle"
-        case .error: return "xmark.circle"
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .warning: return .orange
-        case .error: return .red
-        }
-    }
-
-    var accessibilityLabel: String {
-        switch self {
-        case .warning(let message): return "Warning: \(message)"
-        case .error(let message): return "Error: \(message)"
-        }
     }
 }

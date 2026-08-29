@@ -84,6 +84,7 @@ jobs:
         run: |
           set -euo pipefail
           bash Scripts/validate-plists.sh
+          bash Scripts/validate-compatibility-metadata.sh
           bash Scripts/check-secrets.sh
           version=$(xcodebuild -project YeelightBar.xcodeproj -scheme YeelightBar -configuration Release -showBuildSettings | awk '/MARKETING_VERSION/ { print $3; exit }')
           tag_version=${RELEASE_TAG#v}

@@ -47,7 +47,7 @@ xmllint --noout "$appcast"
 grep -Fq "url=\"${download_prefix}${expected_dmg}\"" "$appcast"
 grep -Fq "<sparkle:shortVersionString>${release_version}</sparkle:shortVersionString>" "$appcast"
 grep -Eq '<sparkle:version>[1-9][0-9]*</sparkle:version>' "$appcast"
-grep -Fq '<sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>' "$appcast"
+grep -Fq '<sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>' "$appcast"
 grep -Fq 'sparkle:edSignature=' "$appcast"
 grep -Fq '<!-- sparkle-signatures:' "$appcast"
 
