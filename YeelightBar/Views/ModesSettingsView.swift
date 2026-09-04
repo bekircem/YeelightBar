@@ -52,10 +52,10 @@ struct ModesSettingsView: View {
 
             HSplitView {
                 modeList
-                    .frame(minWidth: 300, idealWidth: 380, maxWidth: 520, maxHeight: .infinity)
+                    .frame(minWidth: 240, idealWidth: 320, maxWidth: 480, maxHeight: .infinity)
 
                 selectedPresetDetail
-                    .frame(minWidth: 250, idealWidth: 320, maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(minWidth: 180, idealWidth: 260, maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
