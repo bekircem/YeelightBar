@@ -15,6 +15,7 @@ enum YeelightBarMain {
 private struct YeelightBarApp: App {
     private let updateController: SparkleUpdateController
     @StateObject private var state: AppState
+    @StateObject private var settingsWindowCoordinator: SettingsWindowCoordinator
 
     init() {
         let updateController = SparkleUpdateController()
@@ -22,6 +23,7 @@ private struct YeelightBarApp: App {
 
         let state = AppState(updateChecker: updateController)
         _state = StateObject(wrappedValue: state)
+        _settingsWindowCoordinator = StateObject(wrappedValue: SettingsWindowCoordinator())
 
         DispatchQueue.main.async { [state] in
             state.start()
@@ -32,6 +34,7 @@ private struct YeelightBarApp: App {
         MenuBarExtra {
             MenuBarContentView()
                 .environmentObject(state)
+                .environmentObject(settingsWindowCoordinator)
         } label: {
             Image(systemName: state.menuBarSymbolName)
         }
@@ -40,9 +43,12 @@ private struct YeelightBarApp: App {
         Settings {
             SettingsView()
                 .environmentObject(state)
-                .frame(minWidth: 860, minHeight: 560)
+                .environmentObject(settingsWindowCoordinator)
         }
-        .defaultSize(width: 980, height: 680)
+        .defaultSize(
+            width: SettingsWindowGeometry.idealContentSize.width,
+            height: SettingsWindowGeometry.idealContentSize.height
+        )
         .windowResizability(.contentMinSize)
     }
 }

@@ -1,9 +1,9 @@
-import AppKit
 import Foundation
 import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var state: AppState
+    @EnvironmentObject private var settingsWindowCoordinator: SettingsWindowCoordinator
     @SceneStorage("settings.selectedPanel") private var selectedPanelRawValue = SettingsPanel.general.rawValue
     @State var confirmForgetDevices = false
     @State var confirmResetPreferences = false
@@ -11,28 +11,31 @@ struct SettingsView: View {
     @State var recordingPresetShortcutID: UUID?
 
     private var selectedPanel: SettingsPanel {
-        SettingsPanel(rawValue: selectedPanelRawValue) ?? .general
+        SettingsSelection.panel(for: selectedPanelRawValue)
     }
 
     private var selectedPanelBinding: Binding<SettingsPanel?> {
         Binding(
             get: { selectedPanel },
             set: { panel in
-                selectedPanelRawValue = (panel ?? .general).rawValue
+                selectedPanelRawValue = SettingsSelection.rawValue(for: panel)
             }
         )
     }
 
     var body: some View {
-        NavigationSplitView {
+        HStack(spacing: 0) {
             sidebar
-        } detail: {
+
+            Divider()
+
             detail
         }
-        .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 860, minHeight: 560)
-        .onAppear {
-            NSApp.activate(ignoringOtherApps: true)
+        .background {
+            SettingsWindowReader { window in
+                settingsWindowCoordinator.register(window: window)
+            }
+            .frame(width: 0, height: 0)
         }
         .alert("Forget all saved devices?", isPresented: $confirmForgetDevices) {
             Button("Forget Devices", role: .destructive) {
@@ -55,16 +58,22 @@ struct SettingsView: View {
     private var sidebar: some View {
         List(selection: selectedPanelBinding) {
             ForEach(SettingsPanel.allCases) { panel in
-                Label(panel.title, systemImage: panel.systemImage)
+                Label {
+                    Text(panel.title)
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(.primary)
+                } icon: {
+                    Image(systemName: panel.systemImage)
+                        .frame(width: SettingsLayout.sidebarIconWidth)
+                }
                     .lineLimit(1)
                     .tag(panel)
                     .accessibilityIdentifier("settings.sidebar.\(panel.rawValue)")
             }
         }
         .listStyle(.sidebar)
-        .navigationTitle("Settings")
-        .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 250)
-        .toolbar(removing: .sidebarToggle)
+        .frame(width: SettingsLayout.sidebarWidth)
+        .accessibilityIdentifier("settings.sidebar")
     }
 
     @ViewBuilder
@@ -101,4 +110,19 @@ struct SettingsView: View {
                 .foregroundStyle(.secondary)
         }
     }
+}
+
+enum SettingsSelection {
+    static func panel(for rawValue: String) -> SettingsPanel {
+        SettingsPanel(rawValue: rawValue) ?? .general
+    }
+
+    static func rawValue(for panel: SettingsPanel?) -> String {
+        (panel ?? .general).rawValue
+    }
+}
+
+enum SettingsLayout {
+    static let sidebarWidth: CGFloat = 216
+    static let sidebarIconWidth: CGFloat = 18
 }

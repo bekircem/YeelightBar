@@ -160,7 +160,7 @@ struct MenuBarContentView: View {
                     }
                     .yeelightPrimaryButtonStyle()
 
-                    SettingsLink {
+                    SettingsPresentationButton {
                         Label("Device Settings", systemImage: "gearshape")
                     }
                     .buttonStyle(.glass)
@@ -199,7 +199,7 @@ struct MenuBarContentView: View {
 
     private var footer: some View {
         HStack(spacing: YeelightDesignTokens.spaceS) {
-            SettingsLink {
+            SettingsPresentationButton {
                 Label("Settings", systemImage: "gearshape")
             }
             .buttonStyle(.glass)
